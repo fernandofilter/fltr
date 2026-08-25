@@ -6,8 +6,11 @@
  *
  *  `contact.value` is a placeholder. It was never supplied, and inventing a
  *  contact address is not something a build gets to do on the owner's behalf.
- *  The page renders a visible NOT SET state until this is filled in, so it
- *  cannot ship unnoticed.
+ *
+ *  While it is empty the page shows "Em breve" / "Coming soon" — deliberate
+ *  public copy, chosen by the owner, not a build warning. That means an empty
+ *  value now ships quietly and looks intentional to a visitor: nothing on the
+ *  page will remind you it is unset, so this file is the only reminder.
  *
  *  Set `channel` to 'email' or 'whatsapp' and `value` to the real address or
  *  number. Everything else on the page derives from this.
