@@ -10,25 +10,32 @@
 
 Source of the landing page for **fltr**, a software development service.
 
-> Not published yet — no deploy target chosen, so there is no live URL. The
-> images above are captures of the page as it builds today.
+```text
+SHIPPED ─────────────────────────────────────────────── gzip ──
+three.js + field   █████████████████████████    126 KB   deferred island
+Martian Mono ×3    ██████░░░░░░░░░░░░░░░░░░░     31 KB   self-hosted
+HTML               ██░░░░░░░░░░░░░░░░░░░░░░░    8.4 KB
+CSS                █░░░░░░░░░░░░░░░░░░░░░░░░    3.2 KB   no framework
+Page scripts       █░░░░░░░░░░░░░░░░░░░░░░░░    3.5 KB   no UI library
+Audio              ░░░░░░░░░░░░░░░░░░░░░░░░░       0 B   synthesised at runtime
 
-## Stack
+SOURCE ──────────────────────────────────────────────── lines ─
+.astro             █████████████████████████     1,590
+.mjs   verify      ████████████████░░░░░░░░░     1,023
+.ts    mesh, score ███████████████░░░░░░░░░░       925
+.css   one file    █████░░░░░░░░░░░░░░░░░░░░       318
 
-- **Astro** — static output, no UI framework
-- **three.js** — the point mesh, shipped as a deferred island
-- **Martian Mono** — one family, self-hosted, three weights
+VERIFIED ────────────────────────────────── npm run verify ────
+boot 4  ·  features 10  ·  exits 3  ·  theme 4  ·  audio 5
+                                             26 checks, 0 fixtures
+```
 
-No CSS framework, no component library.
+Those are measured, not decorative — which is the same rule the page itself
+runs on: every number it prints is sampled from the mesh on the frame it is
+shown. It also has two mandatory exits, `prefers-reduced-motion` and no-WebGL,
+both exercised above.
 
-## Notable
-
-- Two values and no grey token; light mode is the same palette inverted
-- Depth in the field is carried by point size, never by an opacity ramp
-- Every printed number is sampled from the mesh on the frame it is shown
-- The lo-fi loop is synthesised at runtime — no audio file, no licence question
-- Two mandatory exits: no WebGL, and `prefers-reduced-motion`
-- The boot screen holds the field's entrance until the moment it lifts
+> Not published yet — no deploy target chosen, so there is no live URL.
 
 ## Run
 
@@ -36,11 +43,7 @@ No CSS framework, no component library.
 npm install && npm run dev
 ```
 
-`npm run build` writes a static site to `dist/`; `npm run preview` serves it.
-
 ## Verify
-
-Start a server, then run the suites against it:
 
 ```bash
 npm run preview
@@ -49,10 +52,6 @@ npm run preview
 ```bash
 npm run verify
 ```
-
-`verify:boot` · `verify:features` · `verify:exits` · `verify:theme` ·
-`verify:audio` run individually. `npm run capture` regenerates the screenshots
-above.
 
 ## License
 

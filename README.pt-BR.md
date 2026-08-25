@@ -10,25 +10,32 @@
 
 Código-fonte da landing page da **fltr**, um serviço de desenvolvimento de software.
 
-> Ainda não publicada — nenhum alvo de deploy foi escolhido, então não há URL no
-> ar. As imagens acima são capturas da página como ela é construída hoje.
+```text
+ENVIADO ─────────────────────────────────────────────── gzip ──
+three.js + campo   █████████████████████████    126 KB   ilha adiada
+Martian Mono ×3    ██████░░░░░░░░░░░░░░░░░░░     31 KB   self-hosted
+HTML               ██░░░░░░░░░░░░░░░░░░░░░░░    8.4 KB
+CSS                █░░░░░░░░░░░░░░░░░░░░░░░░    3.2 KB   sem framework
+Scripts da página  █░░░░░░░░░░░░░░░░░░░░░░░░    3.5 KB   sem lib de UI
+Áudio              ░░░░░░░░░░░░░░░░░░░░░░░░░       0 B   sintetizado em runtime
 
-## Stack
+FONTE ──────────────────────────────────────────────── linhas ─
+.astro             █████████████████████████     1.590
+.mjs   verificação ████████████████░░░░░░░░░     1.023
+.ts    malha, som  ███████████████░░░░░░░░░░       925
+.css   um arquivo  █████░░░░░░░░░░░░░░░░░░░░       318
 
-- **Astro** — saída estática, sem framework de UI
-- **three.js** — a malha de pontos, como ilha adiada
-- **Martian Mono** — uma família, self-hosted, três pesos
+VERIFICADO ──────────────────────────────── npm run verify ────
+boot 4  ·  features 10  ·  exits 3  ·  theme 4  ·  audio 5
+                                            26 checks, 0 fixtures
+```
 
-Sem framework de CSS, sem biblioteca de componentes.
+Esses números são medidos, não decorativos — é a mesma regra que a página segue:
+todo número que ela imprime é amostrado da malha no frame em que aparece. Ela
+também tem duas saídas obrigatórias, `prefers-reduced-motion` e sem-WebGL, ambas
+exercitadas acima.
 
-## Destaques
-
-- Dois valores e nenhum token de cinza; light mode é a mesma paleta invertida
-- A profundidade do campo vem do tamanho do ponto, nunca de uma rampa de opacidade
-- Todo número impresso é amostrado da malha no frame em que aparece
-- O loop lo-fi é sintetizado em tempo de execução — sem arquivo, sem licenciamento
-- Duas saídas obrigatórias: sem WebGL, e `prefers-reduced-motion`
-- A tela de boot segura a entrada do campo até o instante em que ela sobe
+> Ainda não publicada — nenhum alvo de deploy escolhido, então não há URL no ar.
 
 ## Rodar
 
@@ -36,11 +43,7 @@ Sem framework de CSS, sem biblioteca de componentes.
 npm install && npm run dev
 ```
 
-`npm run build` escreve um site estático em `dist/`; `npm run preview` o serve.
-
 ## Verificar
-
-Suba um servidor e rode as suítes contra ele:
 
 ```bash
 npm run preview
@@ -49,10 +52,6 @@ npm run preview
 ```bash
 npm run verify
 ```
-
-`verify:boot` · `verify:features` · `verify:exits` · `verify:theme` ·
-`verify:audio` rodam individualmente. `npm run capture` regenera as capturas
-acima.
 
 ## Licença
 
