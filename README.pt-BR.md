@@ -8,18 +8,16 @@
 
 # fltr
 
+[![No ar em fltr.com.br](https://img.shields.io/badge/live-fltr.com.br-000?style=for-the-badge&labelColor=000&color=fff)](https://fltr.com.br)
 ![Astro 7.2.6](https://img.shields.io/badge/astro-7.2.6-000?style=for-the-badge&labelColor=000&color=fff)
 ![three.js r185](https://img.shields.io/badge/three.js-r185-000?style=for-the-badge&labelColor=000&color=fff)
 ![TypeScript strict](https://img.shields.io/badge/typescript-strict-000?style=for-the-badge&labelColor=000&color=fff)
 ![Sem framework de UI](https://img.shields.io/badge/framework%20de%20ui-nenhum-000?style=for-the-badge&labelColor=000&color=fff)
 
-Código-fonte da landing page da **fltr**, um serviço de desenvolvimento de software.
+**fltr** é um projeto de software, atualmente em desenvolvimento.
 
-A página não carrega texto corrido, por decisão, então ela demonstra: uma malha
-de pontos WebGL de verdade, um loop lo-fi sintetizado em tempo de execução em vez
-de entregue como arquivo, e leituras amostradas da malha no frame em que aparecem.
-
-> Ainda não publicada — nenhum alvo de deploy escolhido, então não há URL no ar.
+Este repositório guarda o código-fonte da sua landing page, no ar em
+**[fltr.com.br](https://fltr.com.br)**.
 
 ## Rodar
 
@@ -27,19 +25,7 @@ de entregue como arquivo, e leituras amostradas da malha no frame em que aparece
 npm install && npm run dev
 ```
 
-## Verificar
-
-```bash
-npm run preview
-```
-
-```bash
-npm run verify
-```
-
-26 checks em cinco suítes: o handoff do boot, as features da página, as duas
-saídas obrigatórias (`prefers-reduced-motion` e sem-WebGL), o tema — lido dos
-pixels renderizados, não do DOM — e o áudio, medido por um analisador.
+`npm run build` escreve um site estático em `dist/`; `npm run preview` o serve.
 
 ## Licença
 

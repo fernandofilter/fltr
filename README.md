@@ -8,18 +8,16 @@
 
 # fltr
 
+[![Live at fltr.com.br](https://img.shields.io/badge/live-fltr.com.br-000?style=for-the-badge&labelColor=000&color=fff)](https://fltr.com.br)
 ![Astro 7.2.6](https://img.shields.io/badge/astro-7.2.6-000?style=for-the-badge&labelColor=000&color=fff)
 ![three.js r185](https://img.shields.io/badge/three.js-r185-000?style=for-the-badge&labelColor=000&color=fff)
 ![TypeScript strict](https://img.shields.io/badge/typescript-strict-000?style=for-the-badge&labelColor=000&color=fff)
-![No dependencies at runtime](https://img.shields.io/badge/ui%20framework-none-000?style=for-the-badge&labelColor=000&color=fff)
+![No UI framework](https://img.shields.io/badge/ui%20framework-none-000?style=for-the-badge&labelColor=000&color=fff)
 
-Source of the landing page for **fltr**, a software development service.
+**fltr** is a software project, currently in development.
 
-The page carries no prose by decision, so it demonstrates instead: a real WebGL
-point mesh, a lo-fi loop synthesised at runtime rather than shipped as a file,
-and readouts sampled from the mesh on the frame they are shown.
-
-> Not published yet — no deploy target chosen, so there is no live URL.
+This repository holds the source of its landing page, live at
+**[fltr.com.br](https://fltr.com.br)**.
 
 ## Run
 
@@ -27,19 +25,7 @@ and readouts sampled from the mesh on the frame they are shown.
 npm install && npm run dev
 ```
 
-## Verify
-
-```bash
-npm run preview
-```
-
-```bash
-npm run verify
-```
-
-26 checks across five suites: the boot handoff, the page's features, the two
-mandatory exits (`prefers-reduced-motion` and no-WebGL), the theme — read from
-rendered pixels, not the DOM — and the audio, measured through an analyser.
+`npm run build` writes a static site to `dist/`; `npm run preview` serves it.
 
 ## License
 
