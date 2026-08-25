@@ -1,7 +1,8 @@
 ---
 import WaveField from './WaveField.astro';
 import Wordmark from './Wordmark.astro';
-import { t, otherLocale, type Locale } from '../i18n/ui';
+import Ticker from './Ticker.astro';
+import { t, otherLocale, tickerLabels, type Locale } from '../i18n/ui';
 import { contactHref, contactLabel, isContactSet } from '../site.config';
 
 interface Props {
@@ -46,6 +47,27 @@ const label = contactLabel();
         <span class="cap"></span>
         <span data-motion-text>{_('motion.stop')}</span>
       </button>
+
+      <!-- Sound is off until asked for. The volume control only exists once
+           there is something to set the level of. -->
+      <div class="sound">
+        <button
+          class="plate label"
+          type="button"
+          data-sound
+          aria-pressed="false"
+          data-on={_('sound.on')}
+          data-off={_('sound.off')}
+        >
+          <span class="cap"></span>
+          <span data-sound-text>{_('sound.on')}</span>
+        </button>
+
+        <label class="volume" data-volume-wrap hidden>
+          <span class="visually-hidden">{_('sound.volume')}</span>
+          <input type="range" min="0" max="100" value="55" step="1" data-volume />
+        </label>
+      </div>
     </div>
   </header>
 
@@ -76,7 +98,7 @@ const label = contactLabel();
         ) : (
           <p class="unset label">
             <span class="unset__box" aria-hidden="true" />
-            {_('contact.unset')}
+            <Ticker labels={tickerLabels[locale]} accessibleLabel={_('contact.unset')} />
           </p>
         )
       }
@@ -170,6 +192,73 @@ const label = contactLabel();
   .toggle__other:where(:hover, :focus-visible) {
     background: var(--lumin);
     color: var(--void);
+  }
+
+  /* ── Sound ─────────────────────────────────────────────────────────────── */
+  .sound {
+    display: flex;
+    align-items: stretch;
+    gap: calc(var(--gutter) / 3);
+  }
+
+  .volume {
+    display: flex;
+    align-items: center;
+    padding-inline: 0.75rem;
+    border: var(--rule);
+  }
+
+  /* `display` beats the hidden attribute, so a flex element with [hidden] stays
+     on screen. Without this line the volume control is visible while the sound
+     is still off. */
+  .volume[hidden] {
+    display: none;
+  }
+
+  /* The range is themed rather than replaced: a hairline track and a filled
+     block for the thumb, which is this world's cursor shape. Native input,
+     native keyboard behaviour. */
+  .volume input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    inline-size: 4.5rem;
+    background: transparent;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .volume input[type='range']::-webkit-slider-runnable-track {
+    block-size: 1px;
+    background: var(--lumin);
+  }
+
+  .volume input[type='range']::-moz-range-track {
+    block-size: 1px;
+    background: var(--lumin);
+  }
+
+  .volume input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    inline-size: 0.5rem;
+    block-size: 0.875rem;
+    margin-block-start: -0.4375rem;
+    background: var(--lumin);
+    border: none;
+    border-radius: 0;
+  }
+
+  .volume input[type='range']::-moz-range-thumb {
+    inline-size: 0.5rem;
+    block-size: 0.875rem;
+    background: var(--lumin);
+    border: none;
+    border-radius: 0;
+  }
+
+  .volume input[type='range']:focus-visible {
+    outline: 2px solid var(--lumin);
+    outline-offset: 4px;
   }
 
   /* ── Margin readout ────────────────────────────────────────────────────── */
@@ -278,7 +367,8 @@ const label = contactLabel();
       gap: calc(var(--gutter) / 2);
     }
 
-    .controls [data-motion-text] {
+    .controls [data-motion-text],
+    .controls [data-sound-text] {
       position: absolute;
       inline-size: 1px;
       block-size: 1px;
@@ -318,6 +408,9 @@ const label = contactLabel();
       frame: number;
     };
 
+    // The score reads the same field the rails do: a busier mesh pings more.
+    audio?.observeField(amplitude);
+
     if (amp) amp.textContent = amplitude.toFixed(2);
     if (nodesEl) nodesEl.textContent = nodes.toLocaleString('en-US');
     if (frameEl) frameEl.textContent = String(frame);
@@ -351,6 +444,39 @@ const label = contactLabel();
     if (!motion) return;
     motion.disabled = true;
     motion.hidden = true;
+  });
+
+  // ── Sound ────────────────────────────────────────────────────────────────
+  // The synth module is only fetched when someone actually asks for sound, so
+  // a visitor who never touches the control pays nothing for it.
+  const soundBtn = document.querySelector<HTMLButtonElement>('[data-sound]');
+  const soundText = document.querySelector<HTMLElement>('[data-sound-text]');
+  const volumeWrap = document.querySelector<HTMLElement>('[data-volume-wrap]');
+  const volume = document.querySelector<HTMLInputElement>('[data-volume]');
+
+  let audio: import('../scripts/field-audio').AudioHandle | null = null;
+
+  soundBtn?.addEventListener('click', async () => {
+    if (!audio) {
+      const { createFieldAudio } = await import('../scripts/field-audio');
+      audio = createFieldAudio();
+      audio.setVolume(Number(volume?.value ?? 55) / 100);
+    }
+
+    const next = !audio.isEnabled();
+    await audio.setEnabled(next);
+
+    soundBtn.setAttribute('aria-pressed', String(next));
+    if (soundText) {
+      soundText.textContent = next
+        ? soundBtn.dataset.off ?? ''
+        : soundBtn.dataset.on ?? '';
+    }
+    if (volumeWrap) volumeWrap.hidden = !next;
+  });
+
+  volume?.addEventListener('input', () => {
+    audio?.setVolume(Number(volume.value) / 100);
   });
 
   // ── Copy ─────────────────────────────────────────────────────────────────
