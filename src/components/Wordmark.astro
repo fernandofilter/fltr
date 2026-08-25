@@ -1,0 +1,40 @@
+---
+/**
+ * The wordmark ships INLINE, never as <img>.
+ *
+ * The file's paths use fill="currentColor" so one asset serves any context.
+ * An <img src> would isolate the SVG from the page's CSS, currentColor would
+ * resolve against the SVG's own root instead, and the mark would render black
+ * on a black page — invisible. This was verified in a browser, not assumed.
+ */
+import raw from '../assets/fltr-wordmark.svg?raw';
+
+interface Props {
+  label: string;
+}
+const { label } = Astro.props;
+
+// Strip the XML prolog: legal in a standalone .svg file, invalid inline in HTML.
+const svg = raw.replace(/<\?xml[\s\S]*?\?>\s*/i, '').trim();
+---
+
+<h1 class="wordmark" aria-label={label}>
+  <span class="wordmark__art" aria-hidden="true" set:html={svg} />
+</h1>
+
+<style>
+  .wordmark {
+    margin: 0;
+    /* The mark is the display voice. It is artwork, so it is sized by the
+       viewport rather than by a type scale — but it stays under the display
+       ceiling in effective cap height. */
+    inline-size: clamp(15rem, 42vw, 34rem);
+    color: var(--lumin);
+  }
+
+  .wordmark__art :global(svg) {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+</style>

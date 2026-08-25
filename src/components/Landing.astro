@@ -1,0 +1,378 @@
+---
+import WaveField from './WaveField.astro';
+import Wordmark from './Wordmark.astro';
+import { t, otherLocale, type Locale } from '../i18n/ui';
+import { contactHref, contactLabel, isContactSet } from '../site.config';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const _ = t(locale);
+const other = otherLocale(locale);
+const here = locale === 'pt' ? 'PT' : 'EN';
+
+const href = contactHref();
+const label = contactLabel();
+---
+
+<WaveField alt={_('a11y.fieldAlt')} staticLabel={_('field.static')} />
+
+<a class="skip plate label" href="#contact">{_('a11y.skip')}</a>
+
+<div class="shell">
+  <header class="rail rail--top">
+    <!-- The rail's left anchor is the world's material, not the name: the
+         wordmark is on screen at full size directly below, and repeating it
+         in the corner is duplication, not branding. -->
+    <span class="mark" aria-hidden="true"><span class="cap"></span></span>
+
+    <div class="controls">
+      <nav class="toggle" aria-label={_('lang.name')}>
+        <span class="toggle__now label" aria-current="true">{here}</span>
+        <a class="toggle__other label" href={other.href} hreflang={other.locale} title={_('lang.switchTo')}>
+          {other.code}
+        </a>
+      </nav>
+
+      <button
+        class="plate label"
+        type="button"
+        data-motion
+        aria-pressed="false"
+        data-on={_('motion.start')}
+        data-off={_('motion.stop')}
+      >
+        <span class="cap"></span>
+        <span data-motion-text>{_('motion.stop')}</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- The margin column. Every value here is sampled from the mesh on screen:
+       a rolling history of its measured amplitude, not an invented metric. -->
+  <aside class="readout" aria-hidden="true">
+    <span class="label label--quiet readout__title">{_('field.readout')}</span>
+    <ol class="readout__stack" data-readout-stack>
+      {Array.from({ length: 9 }).map(() => <li class="readout__row label label--quiet">–.–––––</li>)}
+    </ol>
+  </aside>
+
+  <main class="stage">
+    <Wordmark label="fltr" />
+
+    <div class="contact" id="contact">
+      {
+        isContactSet ? (
+          <>
+            <a class="plate label" href={href!} data-contact-link>
+              <span class="cap" />
+              <span>{label}</span>
+            </a>
+            <button class="plate label" type="button" data-copy={label} data-copied={_('contact.copied')}>
+              <span data-copy-text>{_('contact.copy')}</span>
+            </button>
+          </>
+        ) : (
+          <p class="unset label">
+            <span class="unset__box" aria-hidden="true" />
+            {_('contact.unset')}
+          </p>
+        )
+      }
+    </div>
+  </main>
+
+  <footer class="rail rail--bottom">
+    <span class="bars" aria-hidden="true"></span>
+    <dl class="meters">
+      <div class="meter">
+        <dt class="label label--quiet">{_('field.amplitude')}</dt>
+        <dd class="label" data-meter-amp>–.––</dd>
+      </div>
+      <div class="meter">
+        <dt class="label label--quiet">{_('field.nodes')}</dt>
+        <dd class="label" data-meter-nodes>–</dd>
+      </div>
+      <div class="meter">
+        <dt class="label label--quiet">{_('field.frame')}</dt>
+        <dd class="label" data-meter-frame>–</dd>
+      </div>
+    </dl>
+  </footer>
+</div>
+
+<style>
+  .shell {
+    position: relative;
+    z-index: 1;
+    min-block-size: 100svb;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  /* ── Rails ─────────────────────────────────────────────────────────────── */
+  .rail {
+    display: flex;
+    align-items: center;
+    gap: var(--gutter);
+    padding-inline: var(--gutter);
+    min-block-size: 3rem;
+  }
+
+  .rail--top {
+    justify-content: space-between;
+    border-block-end: var(--rule);
+  }
+
+  .rail--bottom {
+    justify-content: space-between;
+    border-block-start: var(--rule);
+    gap: calc(var(--gutter) / 2);
+  }
+
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    block-size: 0.875rem;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--gutter) / 2);
+  }
+
+  /* ── Language: two locales, so a toggle, not a menu ─────────────────────── */
+  .toggle {
+    display: flex;
+    border: var(--rule);
+  }
+
+  .toggle__now,
+  .toggle__other {
+    padding: 0.625rem 0.75rem;
+    line-height: 1;
+  }
+
+  /* Active state is inversion — the world's one state language. */
+  .toggle__now {
+    background: var(--lumin);
+    color: var(--void);
+  }
+
+  .toggle__other {
+    text-decoration: none;
+    border-inline-start: var(--rule);
+    transition: background 120ms linear, color 120ms linear;
+  }
+
+  .toggle__other:where(:hover, :focus-visible) {
+    background: var(--lumin);
+    color: var(--void);
+  }
+
+  /* ── Margin readout ────────────────────────────────────────────────────── */
+  .readout {
+    position: absolute;
+    inset-block-start: calc(3rem + var(--gutter));
+    inset-inline-start: var(--gutter);
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .readout__title {
+    padding-block-end: 0.35rem;
+    border-block-end: var(--rule-dashed);
+  }
+
+  .readout__stack {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.34rem;
+  }
+
+  /* ── Stage: low and left, never centred ────────────────────────────────── */
+  .stage {
+    align-self: end;
+    display: grid;
+    justify-items: start;
+    gap: clamp(1.25rem, 3vw, 2.25rem);
+    padding: var(--gutter);
+    padding-block-end: clamp(2rem, 6vh, 4.5rem);
+  }
+
+  .contact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .contact .plate {
+    text-decoration: none;
+  }
+
+  /* The unshipped state, made loud on purpose: a blank contact must not slip
+     past unnoticed on a page whose whole job includes carrying one. */
+  .unset {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0.625rem 0.875rem;
+    border: var(--rule-dashed);
+  }
+
+  .unset__box {
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+    border: var(--rule);
+  }
+
+  /* ── Foot ──────────────────────────────────────────────────────────────── */
+  .bars {
+    flex: 1 1 auto;
+    block-size: 0.75rem;
+    min-inline-size: 4rem;
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--lumin) 0 1px,
+        transparent 1px 5px
+      ),
+      repeating-linear-gradient(to right, var(--lumin) 0 1px, transparent 1px 17px);
+  }
+
+  .meters {
+    display: flex;
+    gap: var(--gutter);
+    margin: 0;
+  }
+
+  .meter {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .meter dd {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  @media (max-width: 47.99rem) {
+    .readout {
+      display: none;
+    }
+    .meter:last-child {
+      display: none;
+    }
+  }
+
+  /* Narrow: the motion control keeps its accessible name — the span stays in
+     the accessibility tree — but gives up its printed width so the rail is not
+     pushed against the viewport edge. */
+  @media (max-width: 34rem) {
+    .rail {
+      gap: calc(var(--gutter) / 2);
+    }
+
+    .controls [data-motion-text] {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .bars {
+      display: none;
+    }
+
+    .meters {
+      inline-size: 100%;
+      justify-content: space-between;
+      gap: calc(var(--gutter) / 2);
+    }
+  }
+</style>
+
+<script>
+  const fmt = (n: number, d = 5) => n.toFixed(d).padStart(8, ' ').replace(/ /g, ' ');
+
+  const stack = document.querySelector<HTMLElement>('[data-readout-stack]');
+  const rows = stack ? Array.from(stack.querySelectorAll<HTMLElement>('.readout__row')) : [];
+  const amp = document.querySelector<HTMLElement>('[data-meter-amp]');
+  const nodesEl = document.querySelector<HTMLElement>('[data-meter-nodes]');
+  const frameEl = document.querySelector<HTMLElement>('[data-meter-frame]');
+
+  const history: number[] = [];
+
+  document.addEventListener('fltr:readout', (event) => {
+    const { amplitude, nodes, frame } = (event as CustomEvent).detail as {
+      amplitude: number;
+      nodes: number;
+      frame: number;
+    };
+
+    if (amp) amp.textContent = amplitude.toFixed(2);
+    if (nodesEl) nodesEl.textContent = nodes.toLocaleString('en-US');
+    if (frameEl) frameEl.textContent = String(frame);
+
+    history.unshift(amplitude);
+    if (history.length > rows.length) history.length = rows.length;
+    rows.forEach((row, i) => {
+      row.textContent = history[i] === undefined ? '–.–––––' : fmt(history[i]);
+    });
+  });
+
+  // ── Motion control ───────────────────────────────────────────────────────
+  const motion = document.querySelector<HTMLButtonElement>('[data-motion]');
+  const motionText = document.querySelector<HTMLElement>('[data-motion-text]');
+
+  motion?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('fltr:motion-toggle'));
+  });
+
+  document.addEventListener('fltr:state', (event) => {
+    const { running } = (event as CustomEvent).detail as { running: boolean };
+    if (!motion || !motionText) return;
+    // aria-pressed true == motion is held, which is the control's "on" state.
+    motion.setAttribute('aria-pressed', String(!running));
+    motionText.textContent = running
+      ? motion.dataset.off ?? ''
+      : motion.dataset.on ?? '';
+  });
+
+  document.addEventListener('fltr:unavailable', () => {
+    if (!motion) return;
+    motion.disabled = true;
+    motion.hidden = true;
+  });
+
+  // ── Copy ─────────────────────────────────────────────────────────────────
+  const copy = document.querySelector<HTMLButtonElement>('[data-copy]');
+  const copyText = document.querySelector<HTMLElement>('[data-copy-text]');
+  let revert: number | undefined;
+
+  copy?.addEventListener('click', async () => {
+    const value = copy.dataset.copy;
+    if (!value || !copyText) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      return;
+    }
+    const original = copyText.textContent ?? '';
+    copyText.textContent = copy.dataset.copied ?? original;
+    copy.setAttribute('aria-pressed', 'true');
+    window.clearTimeout(revert);
+    revert = window.setTimeout(() => {
+      copyText.textContent = original;
+      copy.setAttribute('aria-pressed', 'false');
+    }, 1800);
+  });
+</script>

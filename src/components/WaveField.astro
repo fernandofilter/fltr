@@ -1,0 +1,110 @@
+---
+/**
+ * The field. Loaded as a deferred island: the wordmark and the contact are
+ * static HTML and paint before three.js is even requested, so the page's only
+ * two facts never wait on a 3D library.
+ *
+ * Two exits are mandatory, not decorative:
+ *   · no WebGL          → a still bar field in the same material family
+ *   · reduced motion    → the mesh resolves once and holds, no loop
+ * Plus a visible stop control, because a high-contrast moving field is a
+ * photosensitivity risk and not everyone at risk has set an OS preference.
+ */
+interface Props {
+  alt: string;
+  staticLabel: string;
+}
+const { alt, staticLabel } = Astro.props;
+---
+
+<div class="field" data-field>
+  <canvas class="field__canvas" data-field-canvas role="img" aria-label={alt}></canvas>
+  <p class="field__fallback label label--quiet" data-field-fallback hidden>{staticLabel}</p>
+</div>
+
+<style>
+  .field {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: var(--void);
+  }
+
+  .field__canvas {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  /* No-WebGL exit: a still field of hairlines at varying pitch. Same world,
+     same two values, no pretence of being the mesh it replaces. */
+  .field:where([data-webgl='off']) .field__canvas {
+    display: none;
+  }
+
+  .field:where([data-webgl='off'])::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    block-size: 46svb;
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--lumin) 0 1px,
+        transparent 1px 7px
+      ),
+      repeating-linear-gradient(to right, var(--lumin) 0 1px, transparent 1px 23px),
+      repeating-linear-gradient(to bottom, var(--lumin) 0 1px, transparent 1px 11px);
+    mask-image: linear-gradient(to top, #000 0%, #000 22%, transparent 92%);
+  }
+
+  .field__fallback {
+    position: absolute;
+    inset-block-end: calc(var(--gutter) * 2.6);
+    inset-inline-start: var(--gutter);
+    margin: 0;
+  }
+</style>
+
+<script>
+  import { initWaveField, type FieldHandle } from '../scripts/wave-field';
+
+  const root = document.querySelector<HTMLElement>('[data-field]');
+  const canvas = document.querySelector<HTMLCanvasElement>('[data-field-canvas]');
+  const fallback = document.querySelector<HTMLElement>('[data-field-fallback]');
+  if (!root || !canvas) throw new Error('field mount missing');
+
+  let handle: FieldHandle | null = null;
+
+  const emit = (name: string, detail: unknown) =>
+    document.dispatchEvent(new CustomEvent(name, { detail }));
+
+  async function boot() {
+    handle = await initWaveField(canvas!, {
+      startRunning: true,
+      onReadout: (r) => emit('fltr:readout', r),
+    });
+
+    if (!handle) {
+      root!.dataset.webgl = 'off';
+      fallback!.hidden = false;
+      emit('fltr:unavailable', null);
+      return;
+    }
+
+    emit('fltr:state', { running: handle.isRunning() });
+
+    document.addEventListener('fltr:motion-toggle', () => {
+      if (!handle) return;
+      handle.setRunning(!handle.isRunning());
+      emit('fltr:state', { running: handle.isRunning() });
+    });
+  }
+
+  // Defer to idle so the library never competes with first paint.
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => void boot(), { timeout: 1800 });
+  } else {
+    setTimeout(() => void boot(), 1);
+  }
+</script>

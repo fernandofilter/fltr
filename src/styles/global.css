@@ -1,0 +1,185 @@
+@import '@fontsource/martian-mono/latin-300.css';
+@import '@fontsource/martian-mono/latin-400.css';
+@import '@fontsource/martian-mono/latin-700.css';
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Two values. No grey token exists in this system, and none should be added:
+   in this world tone is carried by DENSITY (point spacing, dash pattern, glyph
+   weight), never by a washed-out fill. Every piece of text sits at 21:1.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --void: #000000;
+  --lumin: #ffffff;
+
+  --face: 'Martian Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
+
+  /* Hairline: one physical pixel, full strength. Recession is done with dashes. */
+  --rule: 1px solid var(--lumin);
+  --rule-dashed: 1px dashed var(--lumin);
+
+  --label: 0.625rem;
+  --label-track: 0.22em;
+
+  --gutter: clamp(1rem, 3.2vw, 2.5rem);
+  --rail: clamp(3.25rem, 7vw, 5.5rem);
+
+  --step: clamp(0.5rem, 1.2vw, 0.875rem);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--void);
+  /* The field is the page; nothing scrolls behind it. */
+  block-size: 100%;
+}
+
+body {
+  margin: 0;
+  min-block-size: 100svb;
+  background: var(--void);
+  color: var(--lumin);
+  font-family: var(--face);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* ── Browser surfaces ──────────────────────────────────────────────────────
+   The parts not drawn by hand still carry the design. In this world the
+   active state is INVERSION, so selection inverts rather than tints.        */
+::selection {
+  background: var(--lumin);
+  color: var(--void);
+}
+
+:root {
+  caret-color: var(--lumin);
+  scrollbar-color: var(--lumin) var(--void);
+  scrollbar-width: thin;
+  accent-color: var(--lumin);
+}
+
+::-webkit-scrollbar {
+  inline-size: 10px;
+  block-size: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--void);
+  border-inline-start: var(--rule);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--lumin);
+}
+
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--lumin);
+  outline-offset: 3px;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.28em;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ── The system's one text primitive ─────────────────────────────────────── */
+.label {
+  font-size: var(--label);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.label--quiet {
+  /* Recession by weight, never by opacity. */
+  font-weight: 300;
+}
+
+/* ── Plate: the world's only container ───────────────────────────────────────
+   A bordered box with barcode caps. Active state consumes the border by
+   inverting the whole plate. No radius, no shadow, no glass.               */
+.plate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border: var(--rule);
+  background: var(--void);
+  color: var(--lumin);
+  transition: background 120ms linear, color 120ms linear;
+}
+
+.plate:where(:hover, :focus-visible),
+.plate[aria-pressed='true'] {
+  background: var(--lumin);
+  color: var(--void);
+}
+
+/* Barcode cap — drawn, not a glyph or an emoji. */
+.cap {
+  flex: none;
+  inline-size: 14px;
+  block-size: 1em;
+  background-image: repeating-linear-gradient(
+    to right,
+    currentColor 0 1px,
+    transparent 1px 3px,
+    currentColor 3px 5px,
+    transparent 5px 6px
+  );
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Parked well off-canvas by position, not by a transform that a border and a
+   gutter offset can still leave peeking over the top edge. */
+.skip {
+  position: fixed;
+  inset-block-start: -8rem;
+  inset-inline-start: var(--gutter);
+  z-index: 20;
+  text-decoration: none;
+}
+.skip:focus-visible {
+  inset-block-start: var(--gutter);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

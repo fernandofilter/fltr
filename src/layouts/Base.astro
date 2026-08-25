@@ -1,0 +1,64 @@
+---
+import '../styles/global.css';
+import type { Locale } from '../i18n/ui';
+
+interface Props {
+  locale: Locale;
+  title: string;
+  description: string;
+}
+const { locale, title, description } = Astro.props;
+
+/**
+ * The direction contract. It is emitted as the first child of <body> so it
+ * survives to the built output and can be audited there — a contract only the
+ * source carries is a contract the build erased.
+ */
+const contract = `<!--
+  THESIS: A page with nothing to claim proves competence by being built
+  precisely. Refuses the dark-mode developer portfolio and its minimal-white
+  opposite.
+
+  OWN-WORLD: Pure #000 ground, #FFF signal; no grey token, no colour. One mono
+  face, Martian Mono, tabular, tracked uppercase labels. Material is a WebGL
+  point mesh; containers are bordered plates with barcode caps; active state
+  inverts. Tone comes from density, never opacity.
+
+  STORY: A referral-warm business buyer arrives, finds a name and a working
+  field, reads precision without being told, and takes one contact.
+
+  FIRST VIEWPORT: Full-bleed point-wave field. Wordmark on the left gutter, low
+  and asymmetric; contact plate directly beneath it; live field readout up the
+  left margin; controls top-right; bar rail at the foot.
+
+  FORM: Data-sublime field (Ikeda), adopted over the roll's assigned candidate
+  4, signage; seed 58abe2f6.
+
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the
+  finish review, the verdict, DESIGN.md, and every shipping raster carrying its
+  provenance
+-->`;
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#000000" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate" hreflang="pt" href="/" />
+    <link rel="alternate" hreflang="en" href="/en/" />
+    <link rel="alternate" hreflang="x-default" href="/" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+  </head>
+  <body>
+    <Fragment set:html={contract} />
+    <slot />
+  </body>
+</html>
