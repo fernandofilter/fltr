@@ -15,7 +15,13 @@ existirem, para que possam ser executados sem adivinhação.
 
 ## Convenções
 
-- Mensagens de commit e nomes de branch em inglês; documentação e conversa em português.
+- Mensagens de commit e nomes de branch em inglês; documentação interna e conversa
+  em português.
+- **Exceção — superfícies públicas em inglês.** O site é só em inglês (o i18n foi
+  removido), e o `README.md` da raiz acompanha, com `README.pt-BR.md` ao lado. O
+  GitHub só renderiza o README da raiz na página do repositório, e quem chega ali
+  vem de uma landing em inglês. Editou um dos dois READMEs, edite o outro na mesma
+  passada — eles não têm nenhum mecanismo que force a paridade.
 - Não commitar `*.local.json` nem `.scratch/` (veja `.gitignore`).
 
 ## Agent skills

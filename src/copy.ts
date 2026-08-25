@@ -36,6 +36,14 @@ export const copy = {
   linkedin: 'LinkedIn',
   profiles: 'Profiles',
 
+  /**
+   * The holder is the person, not the mark. Two reasons and both bind: a
+   * copyright notice names a legal person, and `.label` uppercases everything
+   * it touches — printing the brand here would render `FLTR` and break the one
+   * fixed rule in PRODUCT.md, which is that `fltr` keeps its lowercase spelling.
+   */
+  copyrightHolder: 'Fernando Filter',
+
   contactUnset: 'Coming soon',
   contactCopy: 'Copy',
   contactCopied: 'Copied',
