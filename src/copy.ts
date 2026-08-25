@@ -25,6 +25,13 @@ export const copy = {
   soundSilent: 'silent',
   soundVolume: 'Music volume',
 
+  /**
+   * The mesh's point count, as a control. The foot rail already prints NODES;
+   * this makes that number something the visitor moves rather than reads.
+   */
+  densityLabel: 'Density',
+  densitySteps: ['Low', 'Medium', 'High', 'Max'] as const,
+
   /* The theme control is not a toggle in the on/off sense, so it carries no
      `aria-pressed`: its hidden suffix names the ACTION, and the mark shows the
      theme you would move to. */

@@ -101,6 +101,19 @@ the cover is up has thrown the page's only authored moment away.
   still hand the page over — the stages that did not answer say so. It is also
   opt-in from the head script, so a visitor with JS off never gets a cover they
   cannot dismiss, and the shell is `inert` while it is up.
+- **Mesh density is chosen, not assumed.** It used to come from viewport width
+  alone — a guess about the screen standing in for a fact about the machine, so
+  an old laptop on a wide monitor got the same fifty thousand points as a new
+  one. Now four steps (11k / 21k / 37k / 63k at desktop width) sit behind a rail
+  control, the foot rail's NODES meter is their readout, and the choice is
+  stored. The field also measures its own median frame time once, after the
+  entrance settles, and steps down if it cannot hold the rate — but a stored
+  choice always outranks that measurement. Point scale rises as the square root
+  of the thinning, or a sparser field is just a fainter one.
+  **Do not benchmark this with CPU throttling.** It is GPU-bound; Chrome's
+  throttle reported an identical 13ms at 1x and at 6x. `verify-density.mjs`
+  injects real per-frame main-thread work instead, which is what a slow machine
+  actually has.
 - Rail controls print a **mark, not a word**. Material Symbols in the sharp cut
   (zero corner radius, the one geometry this world already obeys), inlined as
   SVG at build time. The word is folded to zero width by an animated grid track

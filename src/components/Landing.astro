@@ -85,6 +85,32 @@ const buildYear = new Date().getFullYear();
           <input type="range" min="0" max="100" value="55" step="1" data-volume />
         </label>
       </div>
+
+      <!-- Density. Not a toggle, so no `aria-pressed` and no printed word: the
+           slider IS the reveal, opening on hover or focus with the same gesture
+           that opens a label elsewhere. The foot rail's NODES meter is the
+           readout — the number the page already prints becomes the one thing
+           this control moves. -->
+      <div class="plate plate--icon density" data-density-plate>
+        <span class="plate__ico">
+          <Icon name="material-symbols:grain-sharp" aria-hidden="true" />
+        </span>
+        <span class="plate__reveal">
+          <span class="plate__word">
+            <span class="density__slot">
+              <input
+                type="range"
+                min="0"
+                max={copy.densitySteps.length - 1}
+                step="1"
+                value={2}
+                data-density
+                aria-label={copy.densityLabel}
+              />
+            </span>
+          </span>
+        </span>
+      </div>
     </div>
   </header>
 
@@ -241,48 +267,86 @@ const buildYear = new Date().getFullYear();
     display: none;
   }
 
+  /* ── Density ───────────────────────────────────────────────────────────── */
+  /* Focus lands on the input INSIDE the clipped track, so this plate opens on
+     `:focus-within` where the others open on `:focus-visible`. The input is
+     clipped, never hidden, so it is still reachable by tab — and reaching it
+     is what opens the plate. */
+  .density:where(:hover, :focus-within) .plate__reveal {
+    grid-template-columns: 1fr;
+  }
+
+  .density__slot {
+    display: block;
+    padding-inline: 0.625rem;
+  }
+
+  .density input[type='range'] {
+    display: block;
+    inline-size: 4.5rem;
+  }
+
   /* The range is themed rather than replaced: a hairline track and a filled
      block for the thumb, which is this world's cursor shape. Native input,
      native keyboard behaviour. */
-  .volume input[type='range'] {
+  .volume input[type='range'],
+  .density input[type='range'] {
     -webkit-appearance: none;
     appearance: none;
     inline-size: 4.5rem;
     background: transparent;
     margin: 0;
     cursor: pointer;
+    /* Form controls do not inherit `color`; measured, the input was reporting
+       the UA default while the plate around it had inverted. Without this,
+       `currentColor` below paints white on a white plate and the control is
+       invisible at exactly the moment it opens. */
+    color: inherit;
+    /* The track is one pixel tall, which was also the input's whole box — a
+       72x1 hit area. Padding gives the pointer something to land on without
+       moving the hairline. */
+    padding-block: 0.5rem;
   }
 
-  .volume input[type='range']::-webkit-slider-runnable-track {
+  /* Track and thumb are painted in `currentColor`, not the signal token. The
+     density plate INVERTS on hover, so a track drawn with the signal value is
+     white on white and the control vanishes exactly when it opens. Volume is
+     unaffected: it sits outside a plate and inherits the signal anyway. */
+  .volume input[type='range']::-webkit-slider-runnable-track,
+  .density input[type='range']::-webkit-slider-runnable-track {
     block-size: 1px;
-    background: var(--signal);
+    background: currentColor;
   }
 
-  .volume input[type='range']::-moz-range-track {
+  .volume input[type='range']::-moz-range-track,
+  .density input[type='range']::-moz-range-track {
     block-size: 1px;
-    background: var(--signal);
+    background: currentColor;
   }
 
-  .volume input[type='range']::-webkit-slider-thumb {
+  .volume input[type='range']::-webkit-slider-thumb,
+  .density input[type='range']::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
     inline-size: 0.5rem;
     block-size: 0.875rem;
     margin-block-start: -0.4375rem;
-    background: var(--signal);
+    background: currentColor;
     border: none;
     border-radius: 0;
   }
 
-  .volume input[type='range']::-moz-range-thumb {
+  .volume input[type='range']::-moz-range-thumb,
+  .density input[type='range']::-moz-range-thumb {
     inline-size: 0.5rem;
     block-size: 0.875rem;
-    background: var(--signal);
+    background: currentColor;
     border: none;
     border-radius: 0;
   }
 
-  .volume input[type='range']:focus-visible {
+  .volume input[type='range']:focus-visible,
+  .density input[type='range']:focus-visible {
     outline: 2px solid var(--signal);
     outline-offset: 4px;
   }
@@ -521,6 +585,55 @@ const buildYear = new Date().getFullYear();
 
   themeBtn?.addEventListener('click', () => {
     applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+  });
+
+  // ── Density ──────────────────────────────────────────────────────────────
+  // The field owns the grid; this only moves the number and remembers it. The
+  // initial step comes from storage when the visitor has one, and otherwise
+  // from the field's own frame-time measurement — a stored choice outranks a
+  // guess, so a measurement never overwrites one.
+  const densityInput = document.querySelector<HTMLInputElement>('[data-density]');
+  const DENSITY_NAMES = ['Low', 'Medium', 'High', 'Max'];
+
+  function paintDensity(step: number) {
+    if (!densityInput) return;
+    densityInput.value = String(step);
+    // Screen readers should hear the step's name, not its index.
+    densityInput.setAttribute('aria-valuetext', DENSITY_NAMES[step] ?? String(step));
+  }
+
+  let densityStored = false;
+  let densitySaved: string | null = null;
+  try {
+    densitySaved = localStorage.getItem('fltr-density');
+  } catch {
+    // Blocked storage only costs persistence.
+  }
+  densityStored = densitySaved !== null;
+  // Painted either way: without this the control ships with no `aria-valuetext`
+  // until someone touches it, and until then a screen reader announces "2".
+  paintDensity(densityStored ? Number(densitySaved) : Number(densityInput?.value ?? 2));
+
+  densityInput?.addEventListener('input', () => {
+    const step = Number(densityInput.value);
+    densityStored = true;
+    paintDensity(step);
+    document.dispatchEvent(new CustomEvent('fltr:density', { detail: { step } }));
+    try {
+      localStorage.setItem('fltr-density', String(step));
+    } catch {
+      /* see above */
+    }
+  });
+
+  // The field measured what this machine holds. Take it only if the visitor
+  // has not already said what they want.
+  document.addEventListener('fltr:density-suggest', (event) => {
+    if (densityStored) return;
+    const { step } = (event as CustomEvent).detail as { step: number };
+    if (!densityInput || Number(densityInput.value) === step) return;
+    paintDensity(step);
+    document.dispatchEvent(new CustomEvent('fltr:density', { detail: { step } }));
   });
 
   // ── Motion control ───────────────────────────────────────────────────────

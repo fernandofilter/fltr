@@ -17,6 +17,7 @@ export default defineConfig({
           'volume-off-sharp',
           'light-mode-sharp',
           'dark-mode-sharp',
+          'grain-sharp',
         ],
         'simple-icons': ['github', 'linkedin'],
       },

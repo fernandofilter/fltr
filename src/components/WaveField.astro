@@ -82,6 +82,15 @@ const { alt, staticLabel } = Astro.props;
   const currentTheme = () =>
     document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 
+  function storedDensity(): number | null {
+    try {
+      const v = localStorage.getItem('fltr-density');
+      return v === null ? null : Number(v);
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * The boot screen holds the field's entrance so the mesh does not resolve
    * behind a cover. Tracked as a flag rather than read at boot time because the
@@ -97,8 +106,12 @@ const { alt, staticLabel } = Astro.props;
       startRunning: true,
       theme: currentTheme(),
       holdEntrance: !released,
+      density: storedDensity() ?? undefined,
       onBoot: (stage, value) => emit('fltr:boot', { stage, value }),
       onReadout: (r) => emit('fltr:readout', r),
+      // What the machine turned out to hold. The control decides whether to
+      // take it; a visitor who already chose is not overruled by a stopwatch.
+      onPerf: (medianMs, step) => emit('fltr:density-suggest', { medianMs, step }),
     });
 
     if (!handle) {
@@ -127,6 +140,11 @@ const { alt, staticLabel } = Astro.props;
   document.addEventListener('fltr:boot-release', () => {
     released = true;
     handle?.releaseEntrance();
+  });
+
+  document.addEventListener('fltr:density', (event) => {
+    const { step } = (event as CustomEvent).detail as { step: number };
+    handle?.setDensity(step);
   });
 
   // Defer to idle so the library never competes with first paint.

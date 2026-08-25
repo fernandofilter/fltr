@@ -44,6 +44,8 @@ export interface FieldHandle {
   setRunning(running: boolean): void;
   isRunning(): boolean;
   setTheme(theme: Theme): void;
+  /** Rebuild the grid at a new density step. */
+  setDensity(step: number): void;
   /**
    * Let the entrance play. While held, the mesh renders as the flat plane it
    * starts from — which is what the boot screen is covering — so the one
@@ -128,15 +130,42 @@ const PALETTE: Record<Theme, { ground: number; signal: [number, number, number] 
 };
 
 /**
+ * Density steps, as multipliers on the grid the viewport already asks for.
+ *
+ * The viewport rule alone was a guess about the machine — a ten-year-old laptop
+ * on a wide monitor got the same fifty thousand points as a new one, and nothing
+ * measured whether it could keep up. These let that be answered instead: by the
+ * visitor at the control, and by the field's own frame timing on first load.
+ */
+export const DENSITY_STEPS = [0.55, 0.75, 1, 1.3] as const;
+export const DEFAULT_DENSITY = 2;
+
+export const clampDensity = (n: number) =>
+  Math.min(Math.max(Math.round(n), 0), DENSITY_STEPS.length - 1);
+
+/**
  * Grid density scales with viewport: narrow screens thin the mesh rather than
  * shrinking it, per the brief. Point scale rises as density falls so a phone
  * still gets a field with presence instead of a haze.
  */
-function densityFor(width: number): { cols: number; rows: number; scale: number } {
-  if (width < 560) return { cols: 172, rows: 148, scale: 1.35 };
-  if (width < 1024) return { cols: 180, rows: 130, scale: 1.25 };
-  if (width < 1600) return { cols: 240, rows: 156, scale: 1.05 };
-  return { cols: 288, rows: 180, scale: 1.0 };
+function densityFor(width: number, step: number): { cols: number; rows: number; scale: number } {
+  const base =
+    width < 560
+      ? { cols: 172, rows: 148, scale: 1.35 }
+      : width < 1024
+        ? { cols: 180, rows: 130, scale: 1.25 }
+        : width < 1600
+          ? { cols: 240, rows: 156, scale: 1.05 }
+          : { cols: 288, rows: 180, scale: 1.0 };
+
+  const m = DENSITY_STEPS[clampDensity(step)];
+  return {
+    cols: Math.round(base.cols * m),
+    rows: Math.round(base.rows * m),
+    // Sparser has to read heavier, or a thinned field is just a fainter one.
+    // The square root is because the points thin in two dimensions, not one.
+    scale: base.scale / Math.sqrt(m),
+  };
 }
 
 /**
@@ -164,6 +193,13 @@ export async function initWaveField(
     onBoot?: (stage: BootStage, value: string) => void;
     startRunning: boolean;
     holdEntrance?: boolean;
+    density?: number;
+    /**
+     * Reported once, after the entrance settles, with the measured median
+     * frame time and the step this machine looks able to hold. The caller
+     * decides whether to take it — a stored preference outranks a guess.
+     */
+    onPerf?: (medianMs: number, suggested: number) => void;
     theme: Theme;
   }
 ): Promise<FieldHandle | null> {
@@ -204,9 +240,10 @@ export async function initWaveField(
   const FIELD_D = 190;
 
   let nodes = 0;
+  let density = clampDensity(opts.density ?? DEFAULT_DENSITY);
 
   function buildGrid(width: number) {
-    const { cols, rows } = densityFor(width);
+    const { cols, rows } = densityFor(width, density);
     const positions = new Float32Array(cols * rows * 3);
     let i = 0;
     for (let r = 0; r < rows; r++) {
@@ -229,7 +266,7 @@ export async function initWaveField(
     uniforms: {
       uPhase: { value: new Vector3() },
       uProgress: { value: 0 },
-      uPointScale: { value: densityFor(window.innerWidth).scale },
+      uPointScale: { value: densityFor(window.innerWidth, density).scale },
       uSignal: { value: new Vector3(...PALETTE[opts.theme].signal) },
     },
     vertexShader: VERT,
@@ -258,7 +295,7 @@ export async function initWaveField(
     camera.lookAt(...framing.target);
     camera.updateProjectionMatrix();
 
-    const next = densityFor(w);
+    const next = densityFor(w, density);
     material.uniforms.uPointScale.value = next.scale;
     const { cols, rows } = next;
     if (cols * rows !== nodes) {
@@ -293,6 +330,9 @@ export async function initWaveField(
   let held = Boolean(opts.holdEntrance) && !reduceMotion.matches;
   let raf = 0;
   let frame = 0;
+  /** Nulled once the one steady-state measurement has been taken. */
+  let perfSamples: number[] | null = [];
+  let lastFrame = 0;
   let clockStart = performance.now();
   let elapsed = 0;
   let entranceStart = 0;
@@ -334,6 +374,25 @@ export async function initWaveField(
       opts.onBoot?.('frame', `${Math.round(performance.now() - bootStart)} ms`);
     }
     frame++;
+
+    // ── What this machine can actually hold ─────────────────────────────────
+    // Sampled once, after the entrance is done and while the field is genuinely
+    // running, so the measurement is of steady state rather than of startup.
+    // A guess from viewport width is what this replaces: the width says how big
+    // the screen is, never how fast the thing driving it is.
+    if (perfSamples && running && !held && p >= 1) {
+      if (lastFrame) perfSamples.push(now - lastFrame);
+      lastFrame = now;
+      if (perfSamples.length >= 90) {
+        const sorted = perfSamples.slice().sort((a, b) => a - b);
+        const medianMs = sorted[Math.floor(sorted.length / 2)];
+        perfSamples = null;
+        // ~50fps and ~33fps. Below the first it gives up one step, below the
+        // second, two — enough to matter, never enough to gut the field.
+        const drop = medianMs > 30 ? 2 : medianMs > 20 ? 1 : 0;
+        opts.onPerf?.(medianMs, clampDensity(density - drop));
+      }
+    }
 
     if (opts.onReadout && frame % 6 === 0) {
       opts.onReadout({ amplitude: readAmplitude(elapsed), nodes, frame });
@@ -399,6 +458,24 @@ export async function initWaveField(
       // the curtain actually moves rather than from whenever the field booted.
       entranceStart = 0;
       kick();
+    },
+
+    setDensity(next: number) {
+      const step = clampDensity(next);
+      if (step === density) return;
+      density = step;
+
+      const w = canvas.clientWidth || window.innerWidth;
+      const old = points.geometry;
+      points.geometry = buildGrid(w);
+      old.dispose();
+      material.uniforms.uPointScale.value = densityFor(w, density).scale;
+
+      // The foot rail prints this count, so it has to hear about the change on
+      // the same tick — the whole point of the control is watching that number
+      // move. And a held field has no frame coming to repaint itself with.
+      opts.onReadout?.({ amplitude: readAmplitude(elapsed), nodes, frame });
+      if (!raf) renderer.render(scene, camera);
     },
 
     setTheme(theme: Theme) {
