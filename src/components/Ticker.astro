@@ -1,0 +1,162 @@
+---
+/**
+ * The typing ticker.
+ *
+ * Two craft details carry this, and both are invisible when done right:
+ *
+ *  · WIDTH IS RESERVED. The longest label is rendered hidden in the same grid
+ *    cell, so the plate is sized once and never resizes. Without it the border
+ *    shivers on every keystroke, which is the tell of a ticker bolted on.
+ *
+ *  · SCREEN READERS GET THE STABLE STRING, not the animation. The moving text
+ *    is aria-hidden; a live region spelling out "E… Em… Em b… Em br…" is
+ *    hostile, and there is no information in the animation that the static
+ *    label does not already carry.
+ */
+interface Props {
+  labels: readonly string[];
+  /** The stable, unanimated string announced to assistive tech. */
+  accessibleLabel: string;
+}
+const { labels, accessibleLabel } = Astro.props;
+
+const longest = [...labels].sort((a, b) => b.length - a.length)[0] ?? '';
+---
+
+<span class="ticker" data-ticker-root data-labels={JSON.stringify(labels)}>
+  <span class="visually-hidden">{accessibleLabel}</span>
+  <span class="ticker__sizer" aria-hidden="true">{longest}</span>
+  <span class="ticker__live" aria-hidden="true">
+    <span data-ticker-text>{labels[0]}</span><i class="ticker__caret" data-ticker-caret></i>
+  </span>
+</span>
+
+<style>
+  .ticker {
+    display: inline-grid;
+    align-items: center;
+  }
+
+  .ticker__sizer,
+  .ticker__live {
+    grid-area: 1 / 1;
+    justify-self: start;
+    white-space: nowrap;
+  }
+
+  /* Present for measurement, absent from the render. */
+  .ticker__sizer {
+    visibility: hidden;
+    /* The caret occupies real width; the sizer has to account for it or the
+       last character clips at the end of the longest label. */
+    padding-inline-end: 0.85ch;
+  }
+
+  .ticker__live {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* A block caret, not a hairline: this world's cursor is a filled cell. */
+  .ticker__caret {
+    inline-size: 0.55ch;
+    block-size: 1em;
+    margin-inline-start: 0.18ch;
+    background: currentColor;
+    animation: caret 1.05s steps(1, end) infinite;
+  }
+
+  @keyframes caret {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Under reduced motion the caret holds solid and the text never types: the
+     first label simply stands there. */
+  @media (prefers-reduced-motion: reduce) {
+    .ticker__caret {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-ticker-root]');
+  const out = document.querySelector<HTMLElement>('[data-ticker-text]');
+
+  if (root && out) {
+    const labels: string[] = JSON.parse(root.dataset.labels ?? '[]');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    const TYPE_MS = 58;
+    const ERASE_MS = 30;
+    const HOLD_MS = 2100;
+    const BETWEEN_MS = 420;
+
+    let timer: number | undefined;
+    let index = 0;
+    let stopped = false;
+
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => {
+        timer = window.setTimeout(resolve, ms);
+      });
+
+    async function run() {
+      // Nothing to cycle through, or the visitor asked for no motion: the first
+      // label is the whole feature.
+      if (labels.length < 2 || reduce.matches) {
+        out!.textContent = labels[0] ?? '';
+        return;
+      }
+
+      while (!stopped) {
+        const word = labels[index % labels.length];
+
+        for (let i = 1; i <= word.length; i++) {
+          if (stopped) return;
+          out!.textContent = word.slice(0, i);
+          await wait(TYPE_MS);
+        }
+
+        await wait(HOLD_MS);
+
+        for (let i = word.length; i >= 0; i--) {
+          if (stopped) return;
+          out!.textContent = word.slice(0, i);
+          await wait(ERASE_MS);
+        }
+
+        await wait(BETWEEN_MS);
+        index++;
+      }
+    }
+
+    // A hidden tab should not be running a timer loop.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopped = true;
+        window.clearTimeout(timer);
+      } else if (stopped) {
+        stopped = false;
+        void run();
+      }
+    });
+
+    reduce.addEventListener('change', () => {
+      if (reduce.matches) {
+        stopped = true;
+        window.clearTimeout(timer);
+        out!.textContent = labels[0] ?? '';
+      }
+    });
+
+    void run();
+  }
+</script>

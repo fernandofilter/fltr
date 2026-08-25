@@ -13,6 +13,9 @@ export const ui = {
     'lang.switchTo': 'Ver em inglês',
     'motion.stop': 'Parar movimento',
     'motion.start': 'Retomar movimento',
+    'sound.on': 'Ligar som',
+    'sound.off': 'Desligar som',
+    'sound.volume': 'Volume do campo',
     'motion.state.running': 'Campo em movimento',
     'motion.state.held': 'Campo parado',
     'contact.label': 'Contato',
@@ -36,6 +39,9 @@ export const ui = {
     'lang.switchTo': 'View in Portuguese',
     'motion.stop': 'Stop motion',
     'motion.start': 'Resume motion',
+    'sound.on': 'Sound on',
+    'sound.off': 'Sound off',
+    'sound.volume': 'Field volume',
     'motion.state.running': 'Field in motion',
     'motion.state.held': 'Field held',
     'contact.label': 'Contact',
@@ -56,6 +62,20 @@ export const ui = {
 } as const;
 
 export type UIKey = keyof (typeof ui)['pt'];
+
+/**
+ * The ticker's loop.
+ *
+ * Every string here traces to a confirmed record in PRODUCT.md — the offer
+ * ("desenvolvimento sob demanda") and the audience ("clientes de negócio").
+ * Nothing was authored to fill the rotation, because this page's standing rule
+ * is that claims are uninventable: no clients, metrics, prices, or capabilities
+ * that were never supplied. Add strings here only when they are true.
+ */
+export const tickerLabels = {
+  pt: ['Em breve', 'Desenvolvimento sob demanda', 'Para empresas'],
+  en: ['Coming soon', 'Development on demand', 'For businesses'],
+} as const satisfies Record<Locale, readonly string[]>;
 
 export function t(locale: Locale) {
   return (key: UIKey): string => ui[locale][key];

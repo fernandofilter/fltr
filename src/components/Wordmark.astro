@@ -1,40 +1,160 @@
 ---
 /**
- * The wordmark ships INLINE, never as <img>.
+ * The wordmark, and the lens.
  *
- * The file's paths use fill="currentColor" so one asset serves any context.
- * An <img src> would isolate the SVG from the page's CSS, currentColor would
- * resolve against the SVG's own root instead, and the mark would render black
- * on a black page — invisible. This was verified in a browser, not assumed.
+ * Two layers of the same mark — filled and outlined — stacked and masked by one
+ * shared aperture that follows the pointer. Inside the circle you get the
+ * outline; outside it you get the fill.
+ *
+ * The non-obvious half is that BOTH layers are masked, in opposition. Masking
+ * only the outline layer in looks right in your head and does nothing on
+ * screen: the outline is mostly hollow, so the filled mark underneath shows
+ * straight through its counters and the aperture reads as no change at all.
+ * The fill has to be cut away exactly where the outline is revealed.
+ *
+ * Both SVGs ship INLINE. They use fill="currentColor", which an <img> would
+ * isolate from the page's CSS — the mark would render black on a black page.
  */
-import raw from '../assets/fltr-wordmark.svg?raw';
+import fillRaw from '../assets/fltr-wordmark.svg?raw';
+import outlineRaw from '../assets/fltr-wordmark-outline.svg?raw';
 
 interface Props {
   label: string;
 }
 const { label } = Astro.props;
 
-// Strip the XML prolog: legal in a standalone .svg file, invalid inline in HTML.
-const svg = raw.replace(/<\?xml[\s\S]*?\?>\s*/i, '').trim();
+const clean = (s: string) => s.replace(/<\?xml[\s\S]*?\?>\s*/i, '').trim();
+const fill = clean(fillRaw);
+const outline = clean(outlineRaw);
 ---
 
-<h1 class="wordmark" aria-label={label}>
-  <span class="wordmark__art" aria-hidden="true" set:html={svg} />
+<h1 class="wordmark" aria-label={label} data-wordmark>
+  <span class="wordmark__layer wordmark__layer--fill" aria-hidden="true" set:html={fill} />
+  <span class="wordmark__layer wordmark__layer--outline" aria-hidden="true" set:html={outline} />
 </h1>
 
 <style>
-  .wordmark {
-    margin: 0;
-    /* The mark is the display voice. It is artwork, so it is sized by the
-       viewport rather than by a type scale — but it stays under the display
-       ceiling in effective cap height. */
-    inline-size: clamp(15rem, 42vw, 34rem);
-    color: var(--lumin);
+  /* Registered so the aperture radius can be transitioned. Without this the
+     custom property is an unanimatable string and the lens snaps open. */
+  @property --lens-r {
+    syntax: '<length>';
+    inherits: true;
+    initial-value: 0px;
   }
 
-  .wordmark__art :global(svg) {
+  .wordmark {
+    position: relative;
+    display: block;
+    margin: 0;
+    inline-size: clamp(15rem, 42vw, 34rem);
+    color: var(--lumin);
+
+    --lens-x: 50%;
+    --lens-y: 50%;
+    --lens-r: 0px;
+    --lens-open: clamp(4.5rem, 9vw, 8.5rem);
+
+    /* One motion grammar: the same exponential ease-out the field enters with. */
+    transition: --lens-r 380ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .wordmark__layer {
+    display: block;
+  }
+
+  .wordmark__layer--outline {
+    position: absolute;
+    inset: 0;
+  }
+
+  .wordmark :global(svg) {
     display: block;
     inline-size: 100%;
     block-size: auto;
   }
+
+  /* The aperture. A hard edge, not a soft glow: this world is pixel-crisp, and
+     a feathered spotlight would introduce the grey ramp the palette refuses.
+     The 1px is antialiasing on the circle, nothing more.
+
+     The name is fltr, and this is literally a filter passing over the mark —
+     the effect is the product's own noun, not decoration borrowed from a demo. */
+  .wordmark__layer--outline {
+    mask-image: radial-gradient(
+      circle at var(--lens-x) var(--lens-y),
+      #000 0 var(--lens-r),
+      transparent calc(var(--lens-r) + 1px)
+    );
+  }
+
+  .wordmark__layer--fill {
+    mask-image: radial-gradient(
+      circle at var(--lens-x) var(--lens-y),
+      transparent 0 var(--lens-r),
+      #000 calc(var(--lens-r) + 1px)
+    );
+  }
+
+  .wordmark:where([data-lens='open']) {
+    --lens-r: var(--lens-open);
+  }
+
+  /* Touch has no hover. Rather than fake one on tap, the lens simply does not
+     exist there and the filled mark stands on its own. */
+  @media not all and (hover: hover) and (pointer: fine) {
+    .wordmark {
+      --lens-r: 0px !important;
+    }
+    .wordmark__layer--outline {
+      display: none;
+    }
+  }
+
+  /* Pointer-driven, so it stays available under reduced motion — but it opens
+     and closes instantly instead of easing. */
+  @media (prefers-reduced-motion: reduce) {
+    .wordmark {
+      transition: none;
+    }
+  }
 </style>
+
+<script>
+  const mark = document.querySelector<HTMLElement>('[data-wordmark]');
+
+  if (mark && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    let frame = 0;
+    let pending: { x: number; y: number } | null = null;
+
+    const flush = () => {
+      frame = 0;
+      if (!pending) return;
+      mark.style.setProperty('--lens-x', `${pending.x}px`);
+      mark.style.setProperty('--lens-y', `${pending.y}px`);
+      pending = null;
+    };
+
+    mark.addEventListener(
+      'pointermove',
+      (event) => {
+        const box = mark.getBoundingClientRect();
+        pending = { x: event.clientX - box.left, y: event.clientY - box.top };
+        // Coalesce to one write per frame: pointermove fires far faster than
+        // the compositor can use, and every write here invalidates a mask.
+        if (!frame) frame = requestAnimationFrame(flush);
+      },
+      { passive: true }
+    );
+
+    mark.addEventListener('pointerenter', () => {
+      mark.dataset.lens = 'open';
+    });
+
+    mark.addEventListener('pointerleave', () => {
+      delete mark.dataset.lens;
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      pending = null;
+    });
+  }
+</script>
