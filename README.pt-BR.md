@@ -14,7 +14,7 @@
 ![TypeScript strict](https://img.shields.io/badge/typescript-strict-000?style=for-the-badge&labelColor=000&color=fff)
 ![Sem framework de UI](https://img.shields.io/badge/framework%20de%20ui-nenhum-000?style=for-the-badge&labelColor=000&color=fff)
 
-**fltr** é um projeto de software, atualmente em desenvolvimento.
+**fltr** é um projeto pessoal, atualmente em desenvolvimento.
 
 Este repositório guarda o código-fonte da sua landing page, no ar em
 **[fltr.com.br](https://fltr.com.br)**.
@@ -24,8 +24,6 @@ Este repositório guarda o código-fonte da sua landing page, no ar em
 ```bash
 npm install && npm run dev
 ```
-
-`npm run build` escreve um site estático em `dist/`; `npm run preview` o serve.
 
 ## Licença
 
