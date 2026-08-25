@@ -46,6 +46,13 @@ await page.addInitScript(() => {
     Object.defineProperty(c, 'destination', { get: () => an, configurable: true });
     window.__an = an;
     window.__ctx = c;
+    // The kit once minted a fresh noise buffer per snare and per hat — about
+    // 370 MB of Float32 an hour, invisible to `performance.memory` because an
+    // AudioBuffer lives on the audio thread. Count them: a page left open is
+    // where that bill comes due, and nothing else here would notice.
+    window.__buffers = 0;
+    const realCreate = c.createBuffer.bind(c);
+    c.createBuffer = (...b) => { window.__buffers++; return realCreate(...b); };
     return c;
   };
   window.AudioContext.prototype = Real.prototype;
@@ -61,6 +68,9 @@ await page.waitForFunction(
 await page.click('[data-sound]');
 // Past the 1.6s open ramp, so the ramp itself is not sampled as dynamics.
 await page.waitForTimeout(2600);
+
+// Everything the graph needs is built by now; steady-state must allocate nothing.
+const buffersAtSteadyState = await page.evaluate(() => window.__buffers);
 
 const mix = await page.evaluate(async () => {
   const an = window.__an;
@@ -86,6 +96,8 @@ const mix = await page.evaluate(async () => {
     frames: samples.length,
   };
 });
+
+const buffersAfterPlaying = await page.evaluate(() => window.__buffers);
 
 // The off state must actually go quiet, not merely stop scheduling.
 await page.click('[data-sound]');
@@ -194,6 +206,8 @@ const checks = {
   // being a bed and starts being a layer.
   'the noise bed sits under the music': mix.floor < mix.median * 0.35,
   'it stops on demand': off < 0.002,
+  // Fourteen seconds of loop, and not one new buffer.
+  'playing allocates no audio buffers': buffersAfterPlaying === buffersAtSteadyState,
   // Either audible again, or honestly OFF. Never silence behind a lit control.
   'it comes back after the tab is backgrounded, or admits it did not':
     (resumed.peak > 0.01 && resumed.pressed === 'true') ||
@@ -212,6 +226,7 @@ console.log(
       floorOverMedian: (mix.floor / mix.median).toFixed(3),
       peakOverMedian: (mix.peak / mix.median).toFixed(3),
       rmsAfterOff: off,
+      buffersWhilePlaying: buffersAfterPlaying - buffersAtSteadyState,
       afterBackgrounding: resumed,
       afterRefusedResume: refused,
       errors,

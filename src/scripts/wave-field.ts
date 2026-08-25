@@ -59,7 +59,7 @@ export interface FieldHandle {
 export type BootStage = 'renderer' | 'mesh' | 'frame';
 
 const VERT = /* glsl */ `
-  uniform float uTime;
+  uniform vec3 uPhase;
   uniform float uProgress;
   uniform float uPointScale;
 
@@ -69,10 +69,17 @@ const VERT = /* glsl */ `
     // Three harmonics, deliberately incommensurate so the field never visibly
     // repeats. uProgress runs 0..1 once on entrance: the mesh resolves out of a
     // flat plane. That is the page's single authored motion beat.
+    //
+    // The phases arrive ALREADY REDUCED to [0, 2π), computed on the CPU in
+    // double precision. Passing raw elapsed seconds instead — as this did —
+    // means a page left open overnight hands the shader numbers in the tens of
+    // thousands, where a 32-bit float's spacing grows past the per-frame
+    // increment and the wave visibly quantises. sin() is periodic, so folding
+    // the phase costs nothing and the motion is identical.
     float w =
-        sin(p.x * 0.085 + uTime * 0.55) * 2.60
-      + sin(p.z * 0.115 - uTime * 0.38) * 1.85
-      + sin((p.x + p.z) * 0.052 + uTime * 0.24) * 2.15;
+        sin(p.x * 0.085 + uPhase.x) * 2.60
+      + sin(p.z * 0.115 - uPhase.y) * 1.85
+      + sin((p.x + p.z) * 0.052 + uPhase.z) * 2.15;
 
     p.y = w * uProgress;
 
@@ -220,7 +227,7 @@ export async function initWaveField(
 
   const material = new ShaderMaterial({
     uniforms: {
-      uTime: { value: 0 },
+      uPhase: { value: new Vector3() },
       uProgress: { value: 0 },
       uPointScale: { value: densityFor(window.innerWidth).scale },
       uSignal: { value: new Vector3(...PALETTE[opts.theme].signal) },
@@ -261,6 +268,23 @@ export async function initWaveField(
     }
   }
 
+  /**
+   * The three temporal rates the wave steps its harmonics with. The readout
+   * below samples the same numbers, so what the rails print and what the shader
+   * draws cannot drift apart.
+   */
+  const RATE = [0.55, 0.38, 0.24] as const;
+  const TAU = Math.PI * 2;
+
+  /** Seconds in, phase folded to one turn out. Done here, in double precision. */
+  function setPhase(seconds: number) {
+    (material.uniforms.uPhase.value as Vector3).set(
+      (seconds * RATE[0]) % TAU,
+      (seconds * RATE[1]) % TAU,
+      (seconds * RATE[2]) % TAU
+    );
+  }
+
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   let running = opts.startRunning && !reduceMotion.matches;
@@ -281,9 +305,9 @@ export async function initWaveField(
       const x = ((i % 6) / 5 - 0.5) * FIELD_W;
       const z = (Math.floor(i / 6) / 3 - 0.5) * FIELD_D;
       const w =
-        Math.sin(x * 0.085 + t * 0.55) * 2.6 +
-        Math.sin(z * 0.115 - t * 0.38) * 1.85 +
-        Math.sin((x + z) * 0.052 + t * 0.24) * 2.15;
+        Math.sin(x * 0.085 + t * RATE[0]) * 2.6 +
+        Math.sin(z * 0.115 - t * RATE[1]) * 1.85 +
+        Math.sin((x + z) * 0.052 + t * RATE[2]) * 2.15;
       peak = Math.max(peak, Math.abs(w));
     }
     return peak * (material.uniforms.uProgress.value as number);
@@ -291,7 +315,7 @@ export async function initWaveField(
 
   function draw(now: number) {
     if (running) elapsed = (now - clockStart) / 1000;
-    material.uniforms.uTime.value = elapsed;
+    setPhase(elapsed);
 
     // Entrance: exponential ease-out from a flat, already-visible plane.
     // While held it stays at the flat plane — the field is running, measurable
@@ -333,7 +357,7 @@ export async function initWaveField(
   // fully resolved, and does not move.
   if (reduceMotion.matches) {
     material.uniforms.uProgress.value = 1;
-    material.uniforms.uTime.value = 0;
+    setPhase(0);
     renderer.render(scene, camera);
     // draw() never runs on this path, so the frame stage reports from here or
     // the boot screen would wait on a stage that is already done.

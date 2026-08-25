@@ -67,6 +67,21 @@ export interface AudioHandle {
   destroy(): void;
 }
 
+/**
+ * ONE noise buffer for the whole session, four seconds long.
+ *
+ * The kit used to allocate a fresh buffer per hit — 0.3s for every snare, 0.12s
+ * for every hat. At 72 BPM that is ten thousand buffers and about 370 MB of
+ * Float32 an hour, none of it visible in `performance.memory` because an
+ * AudioBuffer lives on the audio thread rather than the JS heap. That is what
+ * a page left open all afternoon was quietly doing.
+ *
+ * Variation is kept by starting each hit at a random OFFSET into this buffer,
+ * which is what the per-hit allocation was really buying: a different patch of
+ * noise each time, at no cost.
+ */
+const NOISE_SECONDS = 4;
+
 function noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
   const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * seconds), ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -116,6 +131,8 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
   let drumBus: GainNode | null = null;
   /** The wow modulator's output, kept so each new key voice can subscribe. */
   let wowBus: GainNode | null = null;
+  /** The session's one noise source. Every hit is a slice of it. */
+  let noise: AudioBuffer | null = null;
 
   let enabled = false;
   let volume = 0.55;
@@ -173,6 +190,8 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
     sustained.push(wow);
     wowBus = wowDepth;
 
+    noise = noiseBuffer(ctx, NOISE_SECONDS);
+
     // ── Vinyl crackle and room hiss, both continuous ────────────────────────
     const crackle = ctx.createBufferSource();
     crackle.buffer = crackleBuffer(ctx, 6);
@@ -190,7 +209,7 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
     sustained.push(crackle);
 
     const hiss = ctx.createBufferSource();
-    hiss.buffer = noiseBuffer(ctx, 4);
+    hiss.buffer = noise;
     hiss.loop = true;
     const hissFilter = ctx.createBiquadFilter();
     hissFilter.type = 'bandpass';
@@ -229,6 +248,12 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
       osc.connect(env).connect(keysBus);
       osc.start(at);
       osc.stop(at + decay + 0.05);
+      // Released explicitly rather than trusting dynamic lifetime alone: this
+      // runs tens of thousands of times an hour on a page left open.
+      osc.onended = () => {
+        osc.disconnect();
+        env.disconnect();
+      };
     }
   }
 
@@ -246,6 +271,10 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
     osc.connect(env).connect(bassBus);
     osc.start(at);
     osc.stop(at + 1.2);
+    osc.onended = () => {
+      osc.disconnect();
+      env.disconnect();
+    };
   }
 
   function kick(at: number) {
@@ -264,12 +293,16 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
     osc.connect(env).connect(drumBus);
     osc.start(at);
     osc.stop(at + 0.45);
+    osc.onended = () => {
+      osc.disconnect();
+      env.disconnect();
+    };
   }
 
   function snare(at: number) {
-    if (!ctx || !drumBus) return;
+    if (!ctx || !drumBus || !noise) return;
     const src = ctx.createBufferSource();
-    src.buffer = noiseBuffer(ctx, 0.3);
+    src.buffer = noise;
 
     const band = ctx.createBiquadFilter();
     band.type = 'bandpass';
@@ -282,14 +315,17 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
     env.gain.exponentialRampToValueAtTime(0.0001, at + 0.13);
 
     src.connect(band).connect(env).connect(drumBus);
-    src.start(at);
+    // A different patch of noise per hit, taken as an offset into the shared
+    // buffer. That variation is the only thing per-hit allocation ever bought.
+    src.start(at, Math.random() * (NOISE_SECONDS - 0.3), 0.3);
     src.stop(at + 0.2);
+    src.onended = () => src.disconnect();
   }
 
   function hat(at: number, level: number) {
-    if (!ctx || !drumBus) return;
+    if (!ctx || !drumBus || !noise) return;
     const src = ctx.createBufferSource();
-    src.buffer = noiseBuffer(ctx, 0.12);
+    src.buffer = noise;
 
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
@@ -303,8 +339,9 @@ export function createFieldAudio(onState?: (playing: boolean) => void): AudioHan
     env.gain.exponentialRampToValueAtTime(0.0001, at + 0.055);
 
     src.connect(hp).connect(env).connect(drumBus);
-    src.start(at);
+    src.start(at, Math.random() * (NOISE_SECONDS - 0.12), 0.12);
     src.stop(at + 0.08);
+    src.onended = () => src.disconnect();
   }
 
   // ── Transport ──────────────────────────────────────────────────────────────
