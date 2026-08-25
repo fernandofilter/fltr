@@ -11,7 +11,7 @@
  * reading as noisy without any single element being loud. The quietest frames
  * are where that shows.
  */
-import { chromium } from 'playwright-core';
+import { chromium, devices } from 'playwright-core';
 
 const BASE = process.env.BASE ?? 'http://localhost:4321';
 
@@ -98,6 +98,93 @@ const off = await page.evaluate(() => {
   return Math.sqrt(sum / buf.length);
 });
 
+await ctx.close();
+
+/**
+ * Coming back to the page, on a touch device.
+ *
+ * Mobile browsers suspend an AudioContext when the page backgrounds, and iOS
+ * suspends it on any system interruption too. Neither announces itself, so a
+ * score with no recovery path is simply dead on return — while the control goes
+ * on printing "playing" over silence, which is the failure this page has a
+ * written rule against.
+ *
+ * Two outcomes are acceptable and both are checked: it comes back audible, or
+ * the control honestly reads OFF so the visitor's next tap is the gesture that
+ * fixes it. What is not acceptable is silence behind a control claiming sound.
+ */
+const instrument = () => {
+  const Real = window.AudioContext;
+  const Wrapped = function (...args) {
+    const c = new Real(...args);
+    const an = c.createAnalyser();
+    an.fftSize = 2048;
+    an.connect(Object.getPrototypeOf(c).__lookupGetter__('destination').call(c));
+    Object.defineProperty(c, 'destination', { get: () => an, configurable: true });
+    window.__an = an;
+    window.__ctx = c;
+    // Lets the test make `resume()` refuse, the way iOS does outside a gesture.
+    window.__block = false;
+    const realResume = c.resume.bind(c);
+    c.resume = () => (window.__block ? Promise.reject(new Error('not allowed')) : realResume());
+    return c;
+  };
+  Wrapped.prototype = Real.prototype;
+  window.AudioContext = Wrapped;
+};
+
+const readControl = (page) =>
+  page.evaluate(() => ({
+    pressed: document.querySelector('[data-sound]')?.getAttribute('aria-pressed'),
+    state: document.querySelector('[data-sound-state]')?.textContent?.trim(),
+    icon: [...document.querySelectorAll('[data-sound] svg')]
+      .filter((s) => s.getBoundingClientRect().width > 0)
+      .map((s) => s.dataset.icon)[0],
+    ctxState: window.__ctx?.state,
+  }));
+
+const peakOver = (page, frames) =>
+  page.evaluate(async (n) => {
+    const b = new Float32Array(window.__an.fftSize);
+    let peak = 0;
+    for (let i = 0; i < n; i++) {
+      window.__an.getFloatTimeDomainData(b);
+      let s = 0;
+      for (const v of b) s += v * v;
+      peak = Math.max(peak, Math.sqrt(s / b.length));
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return peak;
+  }, frames);
+
+const mobile = await browser.newContext({ ...devices['Pixel 5'] });
+const mob = await mobile.newPage();
+mob.on('pageerror', (e) => errors.push(String(e)));
+await mob.addInitScript(instrument);
+await mob.goto(BASE, { waitUntil: 'networkidle' });
+await awaitBoot(mob);
+await mob.locator('[data-sound]').tap();
+await mob.waitForTimeout(2600);
+
+// Background it by fronting another page in the same context, then return.
+const decoy = await mobile.newPage();
+await decoy.goto('about:blank');
+await mob.waitForTimeout(4000);
+await mob.bringToFront();
+await mob.waitForTimeout(2600);
+
+const resumed = { peak: await peakOver(mob, 30), ...(await readControl(mob)) };
+
+// Now make resume() refuse, the way iOS does after an interruption.
+await mob.evaluate(async () => {
+  window.__block = true;
+  await window.__ctx.suspend();
+});
+await mob.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+await mob.waitForTimeout(900);
+const refused = await readControl(mob);
+
+await mobile.close();
 await browser.close();
 
 const checks = {
@@ -107,6 +194,14 @@ const checks = {
   // being a bed and starts being a layer.
   'the noise bed sits under the music': mix.floor < mix.median * 0.35,
   'it stops on demand': off < 0.002,
+  // Either audible again, or honestly OFF. Never silence behind a lit control.
+  'it comes back after the tab is backgrounded, or admits it did not':
+    (resumed.peak > 0.01 && resumed.pressed === 'true') ||
+    (resumed.peak < 0.002 && resumed.pressed === 'false'),
+  'a context that refuses to resume flips the control to OFF':
+    refused.ctxState === 'suspended' &&
+    refused.pressed === 'false' &&
+    refused.icon === 'material-symbols:volume-off-sharp',
   'console clean': errors.length === 0,
 };
 
@@ -117,6 +212,8 @@ console.log(
       floorOverMedian: (mix.floor / mix.median).toFixed(3),
       peakOverMedian: (mix.peak / mix.median).toFixed(3),
       rmsAfterOff: off,
+      afterBackgrounding: resumed,
+      afterRefusedResume: refused,
       errors,
     },
     null,

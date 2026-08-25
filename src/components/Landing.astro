@@ -561,23 +561,32 @@ const buildYear = new Date().getFullYear();
 
   let audio: import('../scripts/field-audio').AudioHandle | null = null;
 
+  /** One place that paints the control, so it can never disagree with itself. */
+  function paintSound(playing: boolean) {
+    if (!soundBtn) return;
+    soundBtn.setAttribute('aria-pressed', String(playing));
+    if (soundState) {
+      soundState.textContent = playing
+        ? soundBtn.dataset.stateOn ?? ''
+        : soundBtn.dataset.stateOff ?? '';
+    }
+    if (volumeWrap) volumeWrap.hidden = !playing;
+  }
+
   soundBtn?.addEventListener('click', async () => {
     if (!audio) {
       const { createFieldAudio } = await import('../scripts/field-audio');
-      audio = createFieldAudio();
+      // The score reports back when the browser takes the context away from it
+      // — backgrounding on mobile, an interruption on iOS. Without this the
+      // plate keeps printing "playing" over silence, which is the same defect
+      // as a stop button for motion that cannot happen.
+      audio = createFieldAudio(paintSound);
       audio.setVolume(Number(volume?.value ?? 55) / 100);
     }
 
     const next = !audio.isEnabled();
     await audio.setEnabled(next);
-
-    soundBtn.setAttribute('aria-pressed', String(next));
-    if (soundState) {
-      soundState.textContent = next
-        ? soundBtn.dataset.stateOn ?? ''
-        : soundBtn.dataset.stateOff ?? '';
-    }
-    if (volumeWrap) volumeWrap.hidden = !next;
+    paintSound(next);
   });
 
   volume?.addEventListener('input', () => {

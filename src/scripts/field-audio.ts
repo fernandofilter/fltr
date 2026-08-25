@@ -101,7 +101,13 @@ function tapeCurve(): Float32Array {
   return curve;
 }
 
-export function createFieldAudio(): AudioHandle {
+/**
+ * @param onState Called whenever the score's audibility changes on its own —
+ *   which happens when the browser suspends the context and we cannot get it
+ *   back without another gesture. The control has to hear about it, or it goes
+ *   on printing "playing" over silence.
+ */
+export function createFieldAudio(onState?: (playing: boolean) => void): AudioHandle {
   let ctx: AudioContext | null = null;
   let master: GainNode | null = null;
   let veil: BiquadFilterNode | null = null;
@@ -319,8 +325,23 @@ export function createFieldAudio(): AudioHandle {
     if (HAT_ON.includes(inBar)) hat(at, inBar % 4 === 0 ? 0.055 : 0.028);
   }
 
+  /** Put the transport back on the downbeat, starting a beat from now. */
+  function resync() {
+    if (!ctx) return;
+    step = 0;
+    nextStepTime = ctx.currentTime + 0.12;
+  }
+
   function tick() {
     if (!ctx || !enabled) return;
+
+    // If the clock fell behind, do NOT let the loop catch up. A hidden tab
+    // throttles `setInterval` to about once a minute while the context keeps
+    // advancing, so on the next firing every missed sixteenth would be
+    // scheduled at a time already in the past and fire at once — a minute of
+    // the loop arriving as a single burst. Drop the gap and restart the bar.
+    if (nextStepTime < ctx.currentTime) resync();
+
     while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD) {
       // Odd sixteenths land late. This is the swing, and it is the difference
       // between a lo-fi loop and a drum machine demo.
@@ -330,6 +351,43 @@ export function createFieldAudio(): AudioHandle {
       nextStepTime += STEP;
     }
   }
+
+  /**
+   * Coming back to the tab.
+   *
+   * Mobile browsers suspend an AudioContext when the page goes to the
+   * background, and iOS also suspends it on any system interruption — a call,
+   * another app taking the audio session. Neither fires an event on the way
+   * out, so without this the score is simply dead on return while the control
+   * still says it is playing.
+   *
+   * `resume()` is attempted, but it is not guaranteed: after some interruptions
+   * iOS will only resume inside a user gesture. When it refuses, the honest
+   * move is to hand the control back its OFF state — then the visitor's next
+   * tap is the gesture, and it works.
+   */
+  async function onVisibility() {
+    if (document.hidden || !enabled || !ctx) return;
+
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        /* Refused; handled below like any other failure to come back. */
+      }
+    }
+
+    if (ctx.state === 'running') {
+      resync();
+      return;
+    }
+
+    enabled = false;
+    window.clearInterval(clock);
+    onState?.(false);
+  }
+
+  document.addEventListener('visibilitychange', onVisibility);
 
   return {
     async setEnabled(on: boolean) {
@@ -346,8 +404,7 @@ export function createFieldAudio(): AudioHandle {
         master.gain.linearRampToValueAtTime(gainFor(volume), ctx.currentTime + 1.6);
 
         // Start on the downbeat of the loop, not wherever the last stop landed.
-        step = 0;
-        nextStepTime = ctx.currentTime + 0.12;
+        resync();
         window.clearInterval(clock);
         clock = window.setInterval(tick, LOOKAHEAD_MS);
         tick();
@@ -385,6 +442,7 @@ export function createFieldAudio(): AudioHandle {
 
     destroy() {
       window.clearInterval(clock);
+      document.removeEventListener('visibilitychange', onVisibility);
       for (const voice of sustained) {
         try {
           voice.stop();
