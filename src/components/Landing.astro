@@ -11,6 +11,8 @@ const href = contactHref();
 const label = contactLabel();
 
 const profileLabel = { github: copy.github, linkedin: copy.linkedin } as const;
+
+const buildYear = new Date().getFullYear();
 ---
 
 <WaveField alt={copy.fieldAlt} staticLabel={copy.fieldStatic} />
@@ -146,6 +148,13 @@ const profileLabel = { github: copy.github, linkedin: copy.linkedin } as const;
         ))
       }
     </nav>
+
+    <!-- Baked at build time, which for a static site means the year the page
+         was last built rather than the year it is being read. That is what a
+         copyright notice is supposed to say, and it is why this is not a
+         client-side `getFullYear()`: a notice that silently rewrites itself in
+         the reader's browser asserts a date nobody published. -->
+    <small class="copyright label label--quiet">© {buildYear} {copy.copyrightHolder}</small>
 
     <span class="bars" aria-hidden="true"></span>
     <dl class="meters">
@@ -349,6 +358,10 @@ const profileLabel = { github: copy.github, linkedin: copy.linkedin } as const;
     text-decoration: none;
   }
 
+  .copyright {
+    flex: none;
+  }
+
   .bars {
     flex: 1 1 auto;
     block-size: 0.75rem;
@@ -382,6 +395,34 @@ const profileLabel = { github: copy.github, linkedin: copy.linkedin } as const;
     .readout {
       display: none;
     }
+  }
+
+  /* The readout is absolutely positioned from the top while the stage is
+     anchored to the bottom, so on a short viewport the two walk into each
+     other — at 620px tall the last rows sit behind the wordmark. Height, not
+     width, is the axis that breaks it, and the fix is to print fewer rows
+     rather than to drop the column: the rolling history is texture, and four
+     samples carry it as well as nine. */
+  @media (max-height: 47.99rem) {
+    .readout__row:nth-child(n + 5) {
+      display: none;
+    }
+  }
+
+  /* Below this the four rows still reach the wordmark — measured, not guessed:
+     at 560px tall the column ends at 170 and the mark starts at 159. There is
+     no row count that survives, so the column goes. */
+  @media (max-height: 38rem) {
+    .readout {
+      display: none;
+    }
+  }
+
+  /* The third meter waits for real width. The copyright notice took about
+     180px out of this rail, and at 768 the row was overflowing with all three
+     still printed — the bar graphic cannot give it back, since it holds a 4rem
+     floor. Dropping the frame counter earlier is cheaper than squashing it. */
+  @media (max-width: 61.99rem) {
     .meter:last-child {
       display: none;
     }
@@ -406,14 +447,12 @@ const profileLabel = { github: copy.github, linkedin: copy.linkedin } as const;
       display: none;
     }
 
-    .meter:nth-last-child(2) {
-      display: none;
-    }
-
+    /* The meters go, not the notice. They are aria-hidden readouts of the field
+       — texture, and the field is already on screen saying the same thing. The
+       copyright is the only real content in this rail besides the profiles, and
+       real content outranks texture when the row runs out of width. */
     .meters {
-      flex: 1 1 auto;
-      justify-content: flex-end;
-      gap: calc(var(--gutter) / 2);
+      display: none;
     }
   }
 </style>
