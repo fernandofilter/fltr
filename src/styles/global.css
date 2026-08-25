@@ -6,16 +6,38 @@
    Two values. No grey token exists in this system, and none should be added:
    in this world tone is carried by DENSITY (point spacing, dash pattern, glyph
    weight), never by a washed-out fill. Every piece of text sits at 21:1.
+
+   The tokens are named for their ROLE, not their colour, and that is what makes
+   a second theme possible without a second design. This world's one state
+   language is already INVERSION — a pressed plate swaps its two values, and so
+   does a text selection. Light mode is that same move applied to the page:
+   ground and signal trade places and nothing else changes. It is not a second
+   palette to maintain; there is still exactly one, read in two directions.
+
+   Dark is the default and stays the default. There is deliberately NO system
+   option: `prefers-color-scheme` is never consulted, so an unset visitor gets
+   dark, and a visitor who chose gets what they chose.
    ───────────────────────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme='dark'] {
+  --ground: #000000;
+  --signal: #ffffff;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --ground: #ffffff;
+  --signal: #000000;
+  color-scheme: light;
+}
+
 :root {
-  --void: #000000;
-  --lumin: #ffffff;
 
   --face: 'Martian Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
 
   /* Hairline: one physical pixel, full strength. Recession is done with dashes. */
-  --rule: 1px solid var(--lumin);
-  --rule-dashed: 1px dashed var(--lumin);
+  --rule: 1px solid var(--signal);
+  --rule-dashed: 1px dashed var(--signal);
 
   --label: 0.625rem;
   --label-track: 0.22em;
@@ -25,7 +47,16 @@
 
   --step: clamp(0.5rem, 1.2vw, 0.875rem);
 
-  color-scheme: dark;
+  /* The theme swap runs at the same rate a plate inverts, because it is the
+     same gesture at page scale. Anything slower reads as a page reloading. */
+  --invert: 120ms linear;
+
+  /* Named layers, in the order they stack. Four surfaces is not many, but the
+     alternative is the 999 that every later addition has to outbid. */
+  --z-field: 0;
+  --z-shell: 1;
+  --z-skip: 20;
+  --z-boot: 30;
 }
 
 *,
@@ -35,7 +66,7 @@
 }
 
 html {
-  background: var(--void);
+  background: var(--ground);
   /* The field is the page; nothing scrolls behind it. */
   block-size: 100%;
 }
@@ -43,8 +74,9 @@ html {
 body {
   margin: 0;
   min-block-size: 100svb;
-  background: var(--void);
-  color: var(--lumin);
+  background: var(--ground);
+  color: var(--signal);
+  transition: background var(--invert), color var(--invert);
   font-family: var(--face);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
@@ -58,15 +90,15 @@ body {
    The parts not drawn by hand still carry the design. In this world the
    active state is INVERSION, so selection inverts rather than tints.        */
 ::selection {
-  background: var(--lumin);
-  color: var(--void);
+  background: var(--signal);
+  color: var(--ground);
 }
 
 :root {
-  caret-color: var(--lumin);
-  scrollbar-color: var(--lumin) var(--void);
+  caret-color: var(--signal);
+  scrollbar-color: var(--signal) var(--ground);
   scrollbar-width: thin;
-  accent-color: var(--lumin);
+  accent-color: var(--signal);
 }
 
 ::-webkit-scrollbar {
@@ -74,15 +106,15 @@ body {
   block-size: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--void);
+  background: var(--ground);
   border-inline-start: var(--rule);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--lumin);
+  background: var(--signal);
 }
 
 :where(a, button, [tabindex]):focus-visible {
-  outline: 2px solid var(--lumin);
+  outline: 2px solid var(--signal);
   outline-offset: 3px;
 }
 
@@ -125,16 +157,117 @@ button {
   gap: 0.75rem;
   padding: 0.625rem 0.875rem;
   border: var(--rule);
-  background: var(--void);
-  color: var(--lumin);
-  transition: background 120ms linear, color 120ms linear;
+  background: var(--ground);
+  color: var(--signal);
+  transition: background var(--invert), color var(--invert);
 }
 
 .plate:where(:hover, :focus-visible),
 .plate[aria-pressed='true'] {
-  background: var(--lumin);
-  color: var(--void);
+  background: var(--signal);
+  color: var(--ground);
 }
+
+/* ── Icon plate ──────────────────────────────────────────────────────────────
+   A plate whose printed content is a mark, not a word. The word is still there
+   — it is what gives the control its accessible name — but it is folded to zero
+   width until the pointer or the keyboard asks for it.
+
+   The fold is done with `grid-template-columns: 0fr → 1fr`, which is the one
+   technique that animates an *intrinsic* width. `max-inline-size` would need a
+   guessed ceiling and would ease at the wrong rate for every label of a
+   different length; this eases each label at its own true width.
+
+   Everything that must vanish with the word — its leading space included — sits
+   INSIDE the clipped track. A gap on the plate itself would leave a hole in the
+   collapsed state.                                                            */
+.plate--icon {
+  gap: 0;
+  padding-block: 0;
+  padding-inline: 0.5625rem;
+  /* Matches the language toggle and the text plates: 30px box + hairline. */
+  min-block-size: 2rem;
+}
+
+.plate__ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.plate__ico svg {
+  inline-size: 100%;
+  block-size: 100%;
+  display: block;
+  /* Material's own sizing attributes lose to this; the mark scales to the cap's
+     width so the rail keeps one optical rhythm. */
+  fill: currentColor;
+}
+
+/* State pair: the plate prints exactly one of the two marks, chosen by the
+   pressed state it already carries. No JS touches these. */
+.plate__ico [data-when='on'] {
+  display: none;
+}
+.plate[aria-pressed='true'] .plate__ico [data-when='on'] {
+  display: block;
+}
+.plate[aria-pressed='true'] .plate__ico [data-when='off'] {
+  display: none;
+}
+
+/* The theme control is not an on/off toggle, so it carries no `aria-pressed`
+   and its marks key off the theme itself. The mark shows the theme you would
+   move TO, which is the one thing the page cannot already tell you by looking
+   at it. Defaulting to the sun means a JS-off render still matches the dark
+   default rather than promising a switch to the theme already on screen. */
+.plate__ico [data-when='to-dark'] {
+  display: none;
+}
+:root[data-theme='light'] .plate__ico [data-when='to-dark'] {
+  display: block;
+}
+:root[data-theme='light'] .plate__ico [data-when='to-light'] {
+  display: none;
+}
+
+.plate__reveal {
+  display: grid;
+  grid-template-columns: 0fr;
+  transition: grid-template-columns 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The clipper carries no padding of its own. With `box-sizing: border-box` a
+   padded box cannot shrink below its own padding, so padding here would leave a
+   permanent 10px stub next to the mark — the collapsed plate would be visibly
+   lopsided. The space belongs one level deeper, inside what gets clipped. */
+.plate__word {
+  overflow: hidden;
+  min-inline-size: 0;
+}
+
+.plate__text {
+  display: block;
+  white-space: nowrap;
+  padding-inline-start: 0.625rem;
+  /* The clipper hides overflow on BOTH axes, and `.label` sets line-height 1 —
+     a box exactly as tall as the em, which is shorter than an uppercase Ã or a
+     Ç with its cedilla. At line-height 1 the tilde is shaved clean off and the
+     word reads "ANIMAÇAO". This is the room those marks need; the plate's own
+     height is set by `min-block-size`, so nothing moves. */
+  line-height: 1.7;
+}
+
+.plate--icon:where(:hover, :focus-visible) .plate__reveal {
+  grid-template-columns: 1fr;
+}
+
+/* The word is CLIPPED, never removed, so it is in the accessibility tree at all
+   times: screen readers and voice control read the same name a hovering visitor
+   sees, and a touch visitor — who has no hover to give — still gets a control
+   with a real name behind a mark that needs none. */
 
 /* Barcode cap — drawn, not a glyph or an emoji. */
 .cap {
@@ -167,7 +300,7 @@ button {
   position: fixed;
   inset-block-start: -8rem;
   inset-inline-start: var(--gutter);
-  z-index: 20;
+  z-index: var(--z-skip);
   text-decoration: none;
 }
 .skip:focus-visible {

@@ -26,8 +26,8 @@ const { alt, staticLabel } = Astro.props;
   .field {
     position: fixed;
     inset: 0;
-    z-index: 0;
-    background: var(--void);
+    z-index: var(--z-field);
+    background: var(--ground);
   }
 
   .field__canvas {
@@ -50,11 +50,11 @@ const { alt, staticLabel } = Astro.props;
     block-size: 46svb;
     background-image: repeating-linear-gradient(
         to right,
-        var(--lumin) 0 1px,
+        var(--signal) 0 1px,
         transparent 1px 7px
       ),
-      repeating-linear-gradient(to right, var(--lumin) 0 1px, transparent 1px 23px),
-      repeating-linear-gradient(to bottom, var(--lumin) 0 1px, transparent 1px 11px);
+      repeating-linear-gradient(to right, var(--signal) 0 1px, transparent 1px 23px),
+      repeating-linear-gradient(to bottom, var(--signal) 0 1px, transparent 1px 11px);
     mask-image: linear-gradient(to top, #000 0%, #000 22%, transparent 92%);
   }
 
@@ -79,9 +79,25 @@ const { alt, staticLabel } = Astro.props;
   const emit = (name: string, detail: unknown) =>
     document.dispatchEvent(new CustomEvent(name, { detail }));
 
+  const currentTheme = () =>
+    document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+
+  /**
+   * The boot screen holds the field's entrance so the mesh does not resolve
+   * behind a cover. Tracked as a flag rather than read at boot time because the
+   * two race: the screen has a ceiling and can release before the field exists.
+   */
+  let released = document.documentElement.dataset.booting === undefined;
+
   async function boot() {
+    // The field boots on idle, which is well after a visitor could have hit the
+    // theme control. Read the theme at boot rather than assuming the default,
+    // or a light-mode page comes up with a black canvas behind it.
     handle = await initWaveField(canvas!, {
       startRunning: true,
+      theme: currentTheme(),
+      holdEntrance: !released,
+      onBoot: (stage, value) => emit('fltr:boot', { stage, value }),
       onReadout: (r) => emit('fltr:readout', r),
     });
 
@@ -100,6 +116,18 @@ const { alt, staticLabel } = Astro.props;
       emit('fltr:state', { running: handle.isRunning() });
     });
   }
+
+  // Registered outside boot(), so a theme switched during the idle window is
+  // not dropped on the floor — the handler catches up once the field exists.
+  document.addEventListener('fltr:theme', () => handle?.setTheme(currentTheme()));
+
+  // Same reason, and one more: if the boot screen hits its ceiling first there
+  // is no handle to release yet, and the flag is what makes the field come up
+  // already-released instead of holding a flat plane forever.
+  document.addEventListener('fltr:boot-release', () => {
+    released = true;
+    handle?.releaseEntrance();
+  });
 
   // Defer to idle so the library never competes with first paint.
   if ('requestIdleCallback' in window) {

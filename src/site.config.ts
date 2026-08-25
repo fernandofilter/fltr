@@ -31,6 +31,18 @@ export function contactHref(): string | null {
     : `mailto:${contact.value}`;
 }
 
+/**
+ * Public profiles. Unlike `contact`, these were supplied and are real, so they
+ * ship as links rather than as a placeholder state. Handle is the same on both,
+ * which is why it is written once.
+ */
+const handle = 'fernandofilter';
+
+export const social = [
+  { key: 'github', icon: 'simple-icons:github', href: `https://github.com/${handle}` },
+  { key: 'linkedin', icon: 'simple-icons:linkedin', href: `https://www.linkedin.com/in/${handle}` },
+] as const;
+
 /** Display string for the contact plate. */
 export function contactLabel(): string | null {
   if (!isContactSet) return null;

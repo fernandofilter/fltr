@@ -1,0 +1,331 @@
+---
+/**
+ * The boot screen.
+ *
+ * A loading screen was asked for, and a fake one was explicitly allowed. This
+ * one is not fake, because this page has a standing rule that the numbers it
+ * prints are measured rather than invented — the rail readouts are sampled from
+ * the mesh on the frame they are shown, and a fabricated progress bar sitting
+ * above them would be the one lie on the page. It costs nothing to be honest
+ * here: the boot already has four real stages, and they already report.
+ *
+ *   FACES        typefaces that finished loading
+ *   RENDERER     the WebGL context actually obtained
+ *   MESH         nodes in the grid that was built
+ *   FIRST FRAME  milliseconds to the first rendered frame
+ *
+ * TWO GUARDS, both about display and neither about the truth of a stage:
+ *   · a MINIMUM. On a warm cache all four land inside 200ms, and a loading
+ *     screen that flashes is worse than none at all.
+ *   · a MAXIMUM. A boot that never reports must still hand the page over. The
+ *     stages that did not answer say so; the bar does not pretend they did.
+ *
+ * THE HANDOFF IS THE POINT. The page's one authored motion beat is the mesh
+ * resolving out of a flat plane, and playing it underneath a cover would spend
+ * it on nobody. So the field boots — that IS the loading — but its entrance is
+ * HELD at zero, and released at the exact moment this screen wipes away. The
+ * curtain lifting and the field resolving are one gesture.
+ */
+---
+
+<div class="boot" data-boot role="status">
+  <span class="visually-hidden" data-boot-status>Loading</span>
+
+  <div class="boot__panel" aria-hidden="true">
+    <span class="boot__mark"></span>
+
+    <dl class="boot__log">
+      <div class="boot__row label" data-boot-row="face" data-pending>
+        <dt class="label--quiet">Faces</dt>
+        <span class="boot__lead"></span>
+        <dd data-boot-value>–</dd>
+      </div>
+      <div class="boot__row label" data-boot-row="renderer" data-pending>
+        <dt class="label--quiet">Renderer</dt>
+        <span class="boot__lead"></span>
+        <dd data-boot-value>–</dd>
+      </div>
+      <div class="boot__row label" data-boot-row="mesh" data-pending>
+        <dt class="label--quiet">Mesh</dt>
+        <span class="boot__lead"></span>
+        <dd data-boot-value>–</dd>
+      </div>
+      <div class="boot__row label" data-boot-row="frame" data-pending>
+        <dt class="label--quiet">First frame</dt>
+        <span class="boot__lead"></span>
+        <dd data-boot-value>–</dd>
+      </div>
+    </dl>
+
+    <div class="boot__meter">
+      <div class="boot__scale"><span class="boot__fill" data-boot-fill></span></div>
+      <!-- The count sits at the wordmark's own optical position, at display
+           scale. It is the last thing on screen before the wipe and the mark
+           is the first thing after it: the two trade places rather than one
+           screen replacing another. -->
+      <span class="boot__count" data-boot-pct>00</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Hidden unless the inline head script says a boot is happening. A visitor
+     with JS off never gets a cover they have no way to dismiss. */
+  .boot {
+    display: none;
+  }
+
+  :root[data-booting] .boot {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-boot);
+    display: grid;
+    /* Low and left, on the stage's exact padding — the wordmark's position.
+       Centring this block would have made the boot a different composition
+       that the landing then has to undo. */
+    align-content: end;
+    justify-items: start;
+    padding: var(--gutter);
+    padding-block-end: clamp(2rem, 6vh, 4.5rem);
+    background: var(--ground);
+    /* The exit is a WIPE, not a fade. This world has two values and a hard
+       edge between them; a cross-fade would put every intermediate grey it
+       does not own on screen for 500ms. The clip retreats upward, so the
+       wordmark below is the first thing uncovered. */
+    clip-path: inset(0 0 0 0);
+    transition: clip-path 620ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  :root[data-booting='done'] .boot {
+    clip-path: inset(0 0 100% 0);
+    pointer-events: none;
+  }
+
+  .boot__panel {
+    inline-size: min(38rem, 100%);
+    display: grid;
+    gap: clamp(1rem, 3vh, 1.75rem);
+  }
+
+  /* The same barcode mark that anchors the top rail, so the screen reads as
+     this instrument warming up rather than as a different screen. */
+  .boot__mark {
+    inline-size: 2.75rem;
+    block-size: 0.875rem;
+    background-image: repeating-linear-gradient(
+      to right,
+      var(--signal) 0 1px,
+      transparent 1px 3px,
+      var(--signal) 3px 5px,
+      transparent 5px 6px
+    );
+  }
+
+  .boot__log {
+    margin: 0;
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .boot__row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  /* Space is reserved for every row from the first frame. Rows that appeared as
+     they landed would push the meter down four times during a boot, which is
+     the exact opposite of what a loading screen is for. */
+  .boot__row[data-pending] {
+    visibility: hidden;
+  }
+
+  .boot__row dt,
+  .boot__row dd {
+    margin: 0;
+  }
+
+  .boot__row dd {
+    font-weight: 700;
+  }
+
+  /* Dotted leader — the world's recession device is a dash pattern, not a tint. */
+  .boot__lead {
+    border-block-end: var(--rule-dashed);
+    translate: 0 -0.25em;
+  }
+
+  .boot__meter {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .boot__scale {
+    position: relative;
+    block-size: 0.875rem;
+    border-block-end: var(--rule-dashed);
+  }
+
+  .boot__fill {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: var(--p, 0%);
+    /* Two pitches beating against each other: the same material as the foot
+       rail's bar graphic, so the meter is made of the page, not of Bootstrap. */
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--signal) 0 1px,
+        transparent 1px 5px
+      ),
+      repeating-linear-gradient(to right, var(--signal) 0 1px, transparent 1px 17px);
+    /* No CSS transition. The width is written every frame from the same eased
+       number the count prints; a transition on top would ease an already-eased
+       value and leave the bar trailing the digits it is supposed to match. */
+  }
+
+  .boot__count {
+    font-size: clamp(3.25rem, 9vw, 6rem);
+    font-weight: 700;
+    line-height: 0.86;
+    /* Well inside the -0.04em floor; at this weight and this face anything
+       tighter closes the counters on the 0 and the 8. */
+    letter-spacing: -0.025em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Reduced motion: no wipe and no counting. The screen is replaced, not
+     performed. The global rule already flattens the transitions; this removes
+     the count-up, which is motion the global rule cannot reach. */
+  @media (prefers-reduced-motion: reduce) {
+    .boot__fill {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-boot]');
+  const fill = document.querySelector<HTMLElement>('[data-boot-fill]');
+  const pct = document.querySelector<HTMLElement>('[data-boot-pct]');
+  const status = document.querySelector<HTMLElement>('[data-boot-status]');
+  const shell = document.querySelector<HTMLElement>('.shell');
+
+  if (root && document.documentElement.dataset.booting !== undefined) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    /** Never flash, never trap. Both are about display, not about a stage. */
+    const MIN_MS = 950;
+    const MAX_MS = 6000;
+    const WIPE_MS = 620;
+
+    const STAGES = ['face', 'renderer', 'mesh', 'frame'] as const;
+    type Stage = (typeof STAGES)[number];
+    const landed = new Set<Stage>();
+    const started = performance.now();
+    let finished = false;
+
+    /** Where the bar is going, 0-100. The printed number chases it. */
+    let target = 0;
+    let shown = 0;
+    let raf = 0;
+
+    // Nothing behind the cover should be reachable while it is up: tabbing into
+    // controls a visitor cannot see is how a loading screen becomes a trap.
+    if (shell) shell.inert = true;
+
+    function report(stage: Stage, value: string) {
+      if (landed.has(stage)) return;
+      landed.add(stage);
+      const row = document.querySelector<HTMLElement>(`[data-boot-row="${stage}"]`);
+      if (row) {
+        const out = row.querySelector<HTMLElement>('[data-boot-value]');
+        if (out) out.textContent = value;
+        delete row.dataset.pending;
+      }
+      target = (landed.size / STAGES.length) * 100;
+      // The bar is NOT set here. It and the printed number are two readouts of
+      // one value, and a bar that jumps to 100 while the number still reads 81
+      // is two instruments disagreeing on a page whose whole claim is
+      // precision. Both are painted from `shown`, so they can never diverge.
+      if (reduce.matches) paint(target);
+      if (landed.size === STAGES.length) finish();
+    }
+
+    // ── Both readouts, from one number ───────────────────────────────────────
+    function paint(value: number) {
+      if (pct) pct.textContent = String(Math.floor(value)).padStart(2, '0');
+      if (fill) fill.style.setProperty('--p', `${value}%`);
+    }
+
+    function count() {
+      shown += (target - shown) * 0.12;
+      if (target - shown < 0.4) shown = target;
+      paint(shown);
+      raf = shown === target && target === 100 ? 0 : requestAnimationFrame(count);
+    }
+
+    // Under reduced motion the number is stamped by `report` as each stage
+    // lands, rather than tweened; there is no loop to start.
+    if (!reduce.matches) raf = requestAnimationFrame(count);
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      // Hold out the remainder of the minimum, then let the number land on 100
+      // before the wipe starts. A bar that vanishes at 94 reads as a bug.
+      const wait = Math.max(0, MIN_MS - (performance.now() - started)) + 240;
+      window.setTimeout(release, wait);
+    }
+
+    function release() {
+      cancelAnimationFrame(raf);
+      paint(100);
+      if (status) status.textContent = '';
+      if (shell) shell.inert = false;
+
+      document.documentElement.dataset.booting = 'done';
+      // The field has been holding its entrance at zero this whole time. It
+      // resolves as the cover lifts: one gesture, not two.
+      document.dispatchEvent(new CustomEvent('fltr:boot-release'));
+
+      window.setTimeout(
+        () => {
+          root!.hidden = true;
+          delete document.documentElement.dataset.booting;
+        },
+        reduce.matches ? 0 : WIPE_MS
+      );
+    }
+
+    // ── Stage 1: the typeface, measured here because nothing else sees it ────
+    void (document.fonts?.ready ?? Promise.resolve()).then(() => {
+      const loaded = [...(document.fonts ?? [])].filter((f) => f.status === 'loaded').length;
+      report('face', loaded ? String(loaded) : '–');
+    });
+
+    // ── Stages 2-4: the field reports its own boot ───────────────────────────
+    document.addEventListener('fltr:boot', (event) => {
+      const { stage, value } = (event as CustomEvent).detail as {
+        stage: Stage;
+        value: string;
+      };
+      report(stage, value);
+    });
+
+    // No WebGL is a completed boot, not a stuck one. The stages that cannot
+    // happen say so rather than being quietly counted as successes.
+    document.addEventListener('fltr:unavailable', () => {
+      report('renderer', 'None');
+      report('mesh', 'N/A');
+      report('frame', 'N/A');
+    });
+
+    // The ceiling. Whatever never answered prints as never answered.
+    window.setTimeout(() => {
+      if (finished) return;
+      for (const stage of STAGES) report(stage, 'No reply');
+    }, MAX_MS);
+  }
+</script>

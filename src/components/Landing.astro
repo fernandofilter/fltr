@@ -1,25 +1,21 @@
 ---
+import { Icon } from 'astro-icon/components';
+import Boot from './Boot.astro';
 import WaveField from './WaveField.astro';
 import Wordmark from './Wordmark.astro';
 import Ticker from './Ticker.astro';
-import { t, otherLocale, tickerLabels, type Locale } from '../i18n/ui';
-import { contactHref, contactLabel, isContactSet } from '../site.config';
-
-interface Props {
-  locale: Locale;
-}
-const { locale } = Astro.props;
-const _ = t(locale);
-const other = otherLocale(locale);
-const here = locale === 'pt' ? 'PT' : 'EN';
+import { copy, tickerLabels } from '../copy';
+import { contactHref, contactLabel, isContactSet, social } from '../site.config';
 
 const href = contactHref();
 const label = contactLabel();
+
+const profileLabel = { github: copy.github, linkedin: copy.linkedin } as const;
 ---
 
-<WaveField alt={_('a11y.fieldAlt')} staticLabel={_('field.static')} />
+<WaveField alt={copy.fieldAlt} staticLabel={copy.fieldStatic} />
 
-<a class="skip plate label" href="#contact">{_('a11y.skip')}</a>
+<a class="skip plate label" href="#contact">{copy.skip}</a>
 
 <div class="shell">
   <header class="rail rail--top">
@@ -29,42 +25,61 @@ const label = contactLabel();
     <span class="mark" aria-hidden="true"><span class="cap"></span></span>
 
     <div class="controls">
-      <nav class="toggle" aria-label={_('lang.name')}>
-        <span class="toggle__now label" aria-current="true">{here}</span>
-        <a class="toggle__other label" href={other.href} hreflang={other.locale} title={_('lang.switchTo')}>
-          {other.code}
-        </a>
-      </nav>
+      <!-- Theme takes the slot the language toggle held. It is not an on/off
+           toggle, so it carries no `aria-pressed`: the hidden suffix names the
+           ACTION and the mark shows the theme you would move to. State the page
+           already displays does not need to be announced twice. -->
+      <button class="plate plate--icon label" type="button" data-theme-toggle>
+        <span class="plate__ico">
+          <Icon name="material-symbols:light-mode-sharp" data-when="to-light" aria-hidden="true" />
+          <Icon name="material-symbols:dark-mode-sharp" data-when="to-dark" aria-hidden="true" />
+        </span>
+        <span class="plate__reveal"><span class="plate__word"><span class="plate__text">{copy.themeLabel}</span></span></span>
+        <span class="visually-hidden">, <span data-theme-state>{copy.themeToLight}</span></span>
+      </button>
 
+      <!-- The printed word is folded to zero width until hover or focus asks
+           for it; it stays in the accessibility tree throughout, so the
+           accessible name reads "Motion, running" whether or not anyone is
+           pointing at it. The mark alone carries the state visually, which is
+           why the word can afford to be a fixed noun. -->
       <button
-        class="plate label"
+        class="plate plate--icon label"
         type="button"
         data-motion
         aria-pressed="false"
-        data-on={_('motion.start')}
-        data-off={_('motion.stop')}
+        data-state-on={copy.motionHeld}
+        data-state-off={copy.motionRunning}
       >
-        <span class="cap"></span>
-        <span data-motion-text>{_('motion.stop')}</span>
+        <span class="plate__ico">
+          <Icon name="material-symbols:pause-sharp" data-when="off" aria-hidden="true" />
+          <Icon name="material-symbols:play-arrow-sharp" data-when="on" aria-hidden="true" />
+        </span>
+        <span class="plate__reveal"><span class="plate__word"><span class="plate__text">{copy.motionLabel}</span></span></span>
+        <span class="visually-hidden">, <span data-motion-state>{copy.motionRunning}</span></span>
       </button>
 
       <!-- Sound is off until asked for. The volume control only exists once
            there is something to set the level of. -->
       <div class="sound">
         <button
-          class="plate label"
+          class="plate plate--icon label"
           type="button"
           data-sound
           aria-pressed="false"
-          data-on={_('sound.on')}
-          data-off={_('sound.off')}
+          data-state-on={copy.soundPlaying}
+          data-state-off={copy.soundSilent}
         >
-          <span class="cap"></span>
-          <span data-sound-text>{_('sound.on')}</span>
+          <span class="plate__ico">
+            <Icon name="material-symbols:volume-off-sharp" data-when="off" aria-hidden="true" />
+            <Icon name="material-symbols:volume-up-sharp" data-when="on" aria-hidden="true" />
+          </span>
+          <span class="plate__reveal"><span class="plate__word"><span class="plate__text">{copy.soundLabel}</span></span></span>
+          <span class="visually-hidden">, <span data-sound-state>{copy.soundSilent}</span></span>
         </button>
 
         <label class="volume" data-volume-wrap hidden>
-          <span class="visually-hidden">{_('sound.volume')}</span>
+          <span class="visually-hidden">{copy.soundVolume}</span>
           <input type="range" min="0" max="100" value="55" step="1" data-volume />
         </label>
       </div>
@@ -74,7 +89,7 @@ const label = contactLabel();
   <!-- The margin column. Every value here is sampled from the mesh on screen:
        a rolling history of its measured amplitude, not an invented metric. -->
   <aside class="readout" aria-hidden="true">
-    <span class="label label--quiet readout__title">{_('field.readout')}</span>
+    <span class="label label--quiet readout__title">{copy.fieldReadout}</span>
     <ol class="readout__stack" data-readout-stack>
       {Array.from({ length: 9 }).map(() => <li class="readout__row label label--quiet">–.–––––</li>)}
     </ol>
@@ -91,14 +106,14 @@ const label = contactLabel();
               <span class="cap" />
               <span>{label}</span>
             </a>
-            <button class="plate label" type="button" data-copy={label} data-copied={_('contact.copied')}>
-              <span data-copy-text>{_('contact.copy')}</span>
+            <button class="plate label" type="button" data-copy={label} data-copied={copy.contactCopied}>
+              <span data-copy-text>{copy.contactCopy}</span>
             </button>
           </>
         ) : (
           <p class="unset label">
             <span class="unset__box" aria-hidden="true" />
-            <Ticker labels={tickerLabels[locale]} accessibleLabel={_('contact.unset')} />
+            <Ticker labels={tickerLabels} accessibleLabel={copy.contactUnset} />
           </p>
         )
       }
@@ -106,28 +121,59 @@ const label = contactLabel();
   </main>
 
   <footer class="rail rail--bottom">
+    <!-- The profiles anchor the foot rail's left edge, the same corner the top
+         rail anchors with the barcode mark. They are the only outbound links on
+         the page and the only real evidence it carries, so they sit in the
+         chrome, not in the stage: the wordmark keeps the stage to itself. -->
+    <nav class="social" aria-label={copy.profiles}>
+      {
+        social.map((profile) => (
+          <a
+            class="plate plate--icon label"
+            href={profile.href}
+            target="_blank"
+            rel="me noopener noreferrer"
+          >
+            <span class="plate__ico">
+              <Icon name={profile.icon} aria-hidden="true" />
+            </span>
+            <span class="plate__reveal">
+              <span class="plate__word">
+                <span class="plate__text">{profileLabel[profile.key]}</span>
+              </span>
+            </span>
+          </a>
+        ))
+      }
+    </nav>
+
     <span class="bars" aria-hidden="true"></span>
     <dl class="meters">
       <div class="meter">
-        <dt class="label label--quiet">{_('field.amplitude')}</dt>
+        <dt class="label label--quiet">{copy.fieldAmplitude}</dt>
         <dd class="label" data-meter-amp>–.––</dd>
       </div>
       <div class="meter">
-        <dt class="label label--quiet">{_('field.nodes')}</dt>
+        <dt class="label label--quiet">{copy.fieldNodes}</dt>
         <dd class="label" data-meter-nodes>–</dd>
       </div>
       <div class="meter">
-        <dt class="label label--quiet">{_('field.frame')}</dt>
+        <dt class="label label--quiet">{copy.fieldFrame}</dt>
         <dd class="label" data-meter-frame>–</dd>
       </div>
     </dl>
   </footer>
 </div>
 
+<!-- Last in the source, first on screen. It covers the shell above rather than
+     replacing it: the landing paints underneath and is fully laid out by the
+     time the cover lifts, so the reveal has nothing left to do. -->
+<Boot />
+
 <style>
   .shell {
     position: relative;
-    z-index: 1;
+    z-index: var(--z-shell);
     min-block-size: 100svb;
     display: grid;
     grid-template-rows: auto 1fr auto;
@@ -165,35 +211,6 @@ const label = contactLabel();
     gap: calc(var(--gutter) / 2);
   }
 
-  /* ── Language: two locales, so a toggle, not a menu ─────────────────────── */
-  .toggle {
-    display: flex;
-    border: var(--rule);
-  }
-
-  .toggle__now,
-  .toggle__other {
-    padding: 0.625rem 0.75rem;
-    line-height: 1;
-  }
-
-  /* Active state is inversion — the world's one state language. */
-  .toggle__now {
-    background: var(--lumin);
-    color: var(--void);
-  }
-
-  .toggle__other {
-    text-decoration: none;
-    border-inline-start: var(--rule);
-    transition: background 120ms linear, color 120ms linear;
-  }
-
-  .toggle__other:where(:hover, :focus-visible) {
-    background: var(--lumin);
-    color: var(--void);
-  }
-
   /* ── Sound ─────────────────────────────────────────────────────────────── */
   .sound {
     display: flex;
@@ -229,12 +246,12 @@ const label = contactLabel();
 
   .volume input[type='range']::-webkit-slider-runnable-track {
     block-size: 1px;
-    background: var(--lumin);
+    background: var(--signal);
   }
 
   .volume input[type='range']::-moz-range-track {
     block-size: 1px;
-    background: var(--lumin);
+    background: var(--signal);
   }
 
   .volume input[type='range']::-webkit-slider-thumb {
@@ -243,7 +260,7 @@ const label = contactLabel();
     inline-size: 0.5rem;
     block-size: 0.875rem;
     margin-block-start: -0.4375rem;
-    background: var(--lumin);
+    background: var(--signal);
     border: none;
     border-radius: 0;
   }
@@ -251,13 +268,13 @@ const label = contactLabel();
   .volume input[type='range']::-moz-range-thumb {
     inline-size: 0.5rem;
     block-size: 0.875rem;
-    background: var(--lumin);
+    background: var(--signal);
     border: none;
     border-radius: 0;
   }
 
   .volume input[type='range']:focus-visible {
-    outline: 2px solid var(--lumin);
+    outline: 2px solid var(--signal);
     outline-offset: 4px;
   }
 
@@ -321,16 +338,27 @@ const label = contactLabel();
   }
 
   /* ── Foot ──────────────────────────────────────────────────────────────── */
+  .social {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--gutter) / 3);
+    flex: none;
+  }
+
+  .social a {
+    text-decoration: none;
+  }
+
   .bars {
     flex: 1 1 auto;
     block-size: 0.75rem;
     min-inline-size: 4rem;
     background-image: repeating-linear-gradient(
         to right,
-        var(--lumin) 0 1px,
+        var(--signal) 0 1px,
         transparent 1px 5px
       ),
-      repeating-linear-gradient(to right, var(--lumin) 0 1px, transparent 1px 17px);
+      repeating-linear-gradient(to right, var(--signal) 0 1px, transparent 1px 17px);
   }
 
   .meters {
@@ -359,32 +387,32 @@ const label = contactLabel();
     }
   }
 
-  /* Narrow: the motion control keeps its accessible name — the span stays in
-     the accessibility tree — but gives up its printed width so the rail is not
-     pushed against the viewport edge. */
+  /* Narrow: the icon plates already print at their collapsed width, so the top
+     rail needs nothing but a tighter gutter. The foot rail gives up its bar
+     graphic and its second meter.
+
+     The foot must NOT be allowed to wrap. The shell is `100svb` with the stage
+     on a `1fr` row, and a grid row's automatic minimum is its min-content — the
+     wordmark's own height — so a foot that grows a second line does not compress
+     the stage, it pushes the whole page past the viewport, and `overflow:
+     hidden` on the body eats the difference. Shedding a meter is cheap; the
+     meters are aria-hidden readouts. The profiles are real content and stay. */
   @media (max-width: 34rem) {
     .rail {
       gap: calc(var(--gutter) / 2);
-    }
-
-    .controls [data-motion-text],
-    .controls [data-sound-text] {
-      position: absolute;
-      inline-size: 1px;
-      block-size: 1px;
-      margin: -1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
     }
 
     .bars {
       display: none;
     }
 
+    .meter:nth-last-child(2) {
+      display: none;
+    }
+
     .meters {
-      inline-size: 100%;
-      justify-content: space-between;
+      flex: 1 1 auto;
+      justify-content: flex-end;
       gap: calc(var(--gutter) / 2);
     }
   }
@@ -422,9 +450,45 @@ const label = contactLabel();
     });
   });
 
+  // ── Theme ────────────────────────────────────────────────────────────────
+  // The theme is already on <html> before this module runs — the inline boot
+  // script in the layout put it there ahead of first paint. All this does is
+  // flip it, remember the choice, and tell the field, which paints its own
+  // ground on a canvas that no stylesheet reaches.
+  const themeBtn = document.querySelector<HTMLButtonElement>('[data-theme-toggle]');
+  const themeState = document.querySelector<HTMLElement>('[data-theme-state]');
+  const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+
+  const THEME_COPY = { light: 'switch to dark', dark: 'switch to light' } as const;
+
+  function applyTheme(next: 'dark' | 'light') {
+    document.documentElement.dataset.theme = next;
+    if (themeState) themeState.textContent = THEME_COPY[next];
+    themeMeta?.setAttribute('content', next === 'light' ? '#ffffff' : '#000000');
+    document.dispatchEvent(new CustomEvent('fltr:theme', { detail: { theme: next } }));
+    try {
+      localStorage.setItem('fltr-theme', next);
+    } catch {
+      // Blocked storage only costs persistence; the page still switches.
+    }
+  }
+
+  // The boot script has already decided; read from it rather than guessing, so
+  // the two never disagree about what is on screen.
+  if (themeState) {
+    themeState.textContent =
+      THEME_COPY[document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'];
+  }
+
+  themeBtn?.addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+  });
+
   // ── Motion control ───────────────────────────────────────────────────────
+  // The printed word never changes; `aria-pressed` swaps the mark in CSS and
+  // the hidden suffix keeps the accessible name honest about the state.
   const motion = document.querySelector<HTMLButtonElement>('[data-motion]');
-  const motionText = document.querySelector<HTMLElement>('[data-motion-text]');
+  const motionState = document.querySelector<HTMLElement>('[data-motion-state]');
 
   motion?.addEventListener('click', () => {
     document.dispatchEvent(new CustomEvent('fltr:motion-toggle'));
@@ -432,12 +496,14 @@ const label = contactLabel();
 
   document.addEventListener('fltr:state', (event) => {
     const { running } = (event as CustomEvent).detail as { running: boolean };
-    if (!motion || !motionText) return;
+    if (!motion) return;
     // aria-pressed true == motion is held, which is the control's "on" state.
     motion.setAttribute('aria-pressed', String(!running));
-    motionText.textContent = running
-      ? motion.dataset.off ?? ''
-      : motion.dataset.on ?? '';
+    if (motionState) {
+      motionState.textContent = running
+        ? motion.dataset.stateOff ?? ''
+        : motion.dataset.stateOn ?? '';
+    }
   });
 
   document.addEventListener('fltr:unavailable', () => {
@@ -450,7 +516,7 @@ const label = contactLabel();
   // The synth module is only fetched when someone actually asks for sound, so
   // a visitor who never touches the control pays nothing for it.
   const soundBtn = document.querySelector<HTMLButtonElement>('[data-sound]');
-  const soundText = document.querySelector<HTMLElement>('[data-sound-text]');
+  const soundState = document.querySelector<HTMLElement>('[data-sound-state]');
   const volumeWrap = document.querySelector<HTMLElement>('[data-volume-wrap]');
   const volume = document.querySelector<HTMLInputElement>('[data-volume]');
 
@@ -467,10 +533,10 @@ const label = contactLabel();
     await audio.setEnabled(next);
 
     soundBtn.setAttribute('aria-pressed', String(next));
-    if (soundText) {
-      soundText.textContent = next
-        ? soundBtn.dataset.off ?? ''
-        : soundBtn.dataset.on ?? '';
+    if (soundState) {
+      soundState.textContent = next
+        ? soundBtn.dataset.stateOn ?? ''
+        : soundBtn.dataset.stateOff ?? '';
     }
     if (volumeWrap) volumeWrap.hidden = !next;
   });

@@ -2,11 +2,21 @@
 /**
  * The typing ticker.
  *
- * Two craft details carry this, and both are invisible when done right:
+ * Three craft details carry this, and all three are invisible when done right:
  *
- *  · WIDTH IS RESERVED. The longest label is rendered hidden in the same grid
- *    cell, so the plate is sized once and never resizes. Without it the border
- *    shivers on every keystroke, which is the tell of a ticker bolted on.
+ *  · THE BLOCK GROWS WITH THE LABEL. The plate is no longer frozen at the width
+ *    of the longest string; it tracks the label being typed. The trick is that
+ *    the box does not FOLLOW the text — it is given the finished width up front
+ *    with a `linear` transition whose duration is exactly the typing duration.
+ *    Text advances one glyph every TYPE_MS; the box edge advances at the
+ *    matching constant rate, so the caret rides the border for the whole run
+ *    instead of the text spilling past a lagging edge.
+ *
+ *  · MEASUREMENT USES A RULER IN THE REAL CASCADE. The hidden span sits inside
+ *    the ticker, so it inherits the same face, size, tracking and uppercasing.
+ *    Widths are read after `document.fonts.ready`; measuring against the
+ *    fallback face and then swapping to Martian Mono is how a ticker ends up
+ *    half a character short of itself.
  *
  *  · SCREEN READERS GET THE STABLE STRING, not the animation. The moving text
  *    is aria-hidden; a live region spelling out "E… Em… Em b… Em br…" is
@@ -19,13 +29,11 @@ interface Props {
   accessibleLabel: string;
 }
 const { labels, accessibleLabel } = Astro.props;
-
-const longest = [...labels].sort((a, b) => b.length - a.length)[0] ?? '';
 ---
 
 <span class="ticker" data-ticker-root data-labels={JSON.stringify(labels)}>
   <span class="visually-hidden">{accessibleLabel}</span>
-  <span class="ticker__sizer" aria-hidden="true">{longest}</span>
+  <span class="ticker__ruler" aria-hidden="true" data-ticker-ruler></span>
   <span class="ticker__live" aria-hidden="true">
     <span data-ticker-text>{labels[0]}</span><i class="ticker__caret" data-ticker-caret></i>
   </span>
@@ -33,37 +41,51 @@ const longest = [...labels].sort((a, b) => b.length - a.length)[0] ?? '';
 
 <style>
   .ticker {
-    display: inline-grid;
+    position: relative;
+    display: inline-flex;
     align-items: center;
-  }
-
-  .ticker__sizer,
-  .ticker__live {
-    grid-area: 1 / 1;
-    justify-self: start;
-    white-space: nowrap;
-  }
-
-  /* Present for measurement, absent from the render. */
-  .ticker__sizer {
-    visibility: hidden;
-    /* The caret occupies real width; the sizer has to account for it or the
-       last character clips at the end of the longest label. */
-    padding-inline-end: 0.85ch;
+    /* No explicit width until the script has measured: a no-JS or pre-hydration
+       render is sized by its own first label rather than collapsing to nothing. */
+    transition-property: inline-size;
+    transition-timing-function: linear;
+    transition-duration: 0ms;
   }
 
   .ticker__live {
     display: inline-flex;
     align-items: center;
+    white-space: nowrap;
+  }
+
+  /* The ruler is out of flow, so it measures without ever occupying space, and
+     it inherits the ticker's own typography rather than approximating it. */
+  .ticker__ruler {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: pre;
   }
 
   /* A block caret, not a hairline: this world's cursor is a filled cell. */
   .ticker__caret {
+    flex: none;
     inline-size: 0.55ch;
     block-size: 1em;
     margin-inline-start: 0.18ch;
     background: currentColor;
     animation: caret 1.05s steps(1, end) infinite;
+  }
+
+  /* Solid while the text is moving. Two reasons, and the second is the one that
+     matters: a terminal cursor stops blinking while you type, AND the block now
+     collapses to caret width between labels — with the blink still running, the
+     plate spends part of every cycle as an empty box with nothing in it, which
+     reads as a rendering fault rather than as a pause. */
+  .ticker[data-typing] .ticker__caret {
+    animation: none;
+    opacity: 1;
   }
 
   @keyframes caret {
@@ -77,11 +99,14 @@ const longest = [...labels].sort((a, b) => b.length - a.length)[0] ?? '';
     }
   }
 
-  /* Under reduced motion the caret holds solid and the text never types: the
-     first label simply stands there. */
+  /* Under reduced motion the caret holds solid, the text never types, and the
+     block never resizes: the first label simply stands there. */
   @media (prefers-reduced-motion: reduce) {
     .ticker__caret {
       animation: none;
+    }
+    .ticker {
+      inline-size: auto !important;
     }
   }
 </style>
@@ -89,8 +114,10 @@ const longest = [...labels].sort((a, b) => b.length - a.length)[0] ?? '';
 <script>
   const root = document.querySelector<HTMLElement>('[data-ticker-root]');
   const out = document.querySelector<HTMLElement>('[data-ticker-text]');
+  const ruler = document.querySelector<HTMLElement>('[data-ticker-ruler]');
+  const caret = document.querySelector<HTMLElement>('[data-ticker-caret]');
 
-  if (root && out) {
+  if (root && out && ruler && caret) {
     const labels: string[] = JSON.parse(root.dataset.labels ?? '[]');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -100,63 +127,122 @@ const longest = [...labels].sort((a, b) => b.length - a.length)[0] ?? '';
     const BETWEEN_MS = 420;
 
     let timer: number | undefined;
+    /** Bumped on every stop, so an abandoned loop cannot resume the new one. */
+    let run = 0;
     let index = 0;
-    let stopped = false;
 
     const wait = (ms: number) =>
       new Promise<void>((resolve) => {
         timer = window.setTimeout(resolve, ms);
       });
 
-    async function run() {
+    /** The caret is part of the block, so it is part of every measurement. */
+    const caretWidth = () => caret.getBoundingClientRect().width + 1;
+
+    const measure = (text: string) => {
+      ruler.textContent = text;
+      return ruler.getBoundingClientRect().width + caretWidth();
+    };
+
+    /**
+     * Hand the block its destination and the exact time it has to get there.
+     * `linear` is deliberate: the text advances at a constant glyph rate, so
+     * anything eased would drift away from the caret mid-word.
+     */
+    const size = (px: number, ms: number) => {
+      root.style.transitionDuration = `${ms}ms`;
+      root.style.inlineSize = `${px}px`;
+    };
+
+    /** Solid caret for the whole moving stretch, blink only while it rests. */
+    const moving = (on: boolean) => {
+      if (on) root!.dataset.typing = '';
+      else delete root!.dataset.typing;
+    };
+
+    async function type(word: string, generation: number) {
+      size(measure(word), word.length * TYPE_MS);
+      for (let i = 1; i <= word.length; i++) {
+        if (generation !== run) return false;
+        out!.textContent = word.slice(0, i);
+        await wait(TYPE_MS);
+      }
+      return generation === run;
+    }
+
+    async function erase(word: string, generation: number) {
+      size(measure(''), word.length * ERASE_MS);
+      for (let i = word.length - 1; i >= 0; i--) {
+        if (generation !== run) return false;
+        out!.textContent = word.slice(0, i);
+        await wait(ERASE_MS);
+      }
+      return generation === run;
+    }
+
+    async function cycle() {
+      const generation = run;
+
       // Nothing to cycle through, or the visitor asked for no motion: the first
-      // label is the whole feature.
+      // label is the whole feature, at its own natural width.
       if (labels.length < 2 || reduce.matches) {
-        out!.textContent = labels[0] ?? '';
+        out!.textContent = labels[index % labels.length] ?? '';
+        root!.style.inlineSize = '';
         return;
       }
 
-      while (!stopped) {
-        const word = labels[index % labels.length];
+      // The label on screen was rendered by the server at full length. Adopt its
+      // width silently rather than retyping a string the visitor already read.
+      out!.textContent = labels[index % labels.length] ?? '';
+      size(measure(out!.textContent), 0);
+      await wait(HOLD_MS);
 
-        for (let i = 1; i <= word.length; i++) {
-          if (stopped) return;
-          out!.textContent = word.slice(0, i);
-          await wait(TYPE_MS);
-        }
-
-        await wait(HOLD_MS);
-
-        for (let i = word.length; i >= 0; i--) {
-          if (stopped) return;
-          out!.textContent = word.slice(0, i);
-          await wait(ERASE_MS);
-        }
-
+      while (generation === run) {
+        // The caret holds solid from the first erased glyph through to the last
+        // typed one — the gap between labels is part of the same gesture, and
+        // it is exactly when the block is at its narrowest.
+        moving(true);
+        if (!(await erase(labels[index % labels.length], generation))) return;
         await wait(BETWEEN_MS);
         index++;
+        if (!(await type(labels[index % labels.length], generation))) return;
+        moving(false);
+        await wait(HOLD_MS);
       }
     }
+
+    const stop = () => {
+      run++;
+      window.clearTimeout(timer);
+    };
 
     // A hidden tab should not be running a timer loop.
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        stopped = true;
-        window.clearTimeout(timer);
-      } else if (stopped) {
-        stopped = false;
-        void run();
+        stop();
+      } else {
+        stop();
+        void cycle();
       }
     });
 
     reduce.addEventListener('change', () => {
-      if (reduce.matches) {
-        stopped = true;
-        window.clearTimeout(timer);
-        out!.textContent = labels[0] ?? '';
-      }
+      stop();
+      void cycle();
     });
 
-    void run();
+    // A rem or zoom change moves every measurement; re-measure from a clean stop
+    // rather than leaving the block frozen at a width that no longer fits.
+    let resizeTimer: number | undefined;
+    window.addEventListener('resize', () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        stop();
+        void cycle();
+      }, 200);
+    });
+
+    // Measuring before the face lands measures the fallback, not Martian Mono.
+    void (document.fonts?.ready ?? Promise.resolve()).then(() => cycle());
   }
 </script>

@@ -8,6 +8,14 @@
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.BASE ?? 'http://localhost:4321';
+
+// The boot screen covers the page until the field is up. Everything below acts
+// on the landing, so wait for the cover to be gone rather than racing it.
+const awaitBoot = (p) =>
+  p.waitForFunction(() => !document.documentElement.hasAttribute('data-booting'), {
+    timeout: 20000,
+  });
+
 const browser = await chromium.launch({ channel: 'msedge' });
 const results = [];
 
@@ -19,6 +27,7 @@ const results = [];
   });
   const page = await ctx.newPage();
   await page.goto(BASE, { waitUntil: 'networkidle' });
+await awaitBoot(page);
   await page.waitForTimeout(3500);
 
   const first = await page.evaluate(
@@ -55,6 +64,7 @@ const results = [];
     };
   });
   await page.goto(BASE, { waitUntil: 'networkidle' });
+await awaitBoot(page);
   await page.waitForTimeout(3500);
 
   const state = await page.evaluate(() => ({
@@ -85,6 +95,7 @@ const results = [];
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   await page.goto(BASE, { waitUntil: 'networkidle' });
+await awaitBoot(page);
   await page.waitForFunction(
     () => document.querySelector('[data-meter-nodes]')?.textContent?.trim() !== '–',
     { timeout: 15000 }
@@ -97,15 +108,29 @@ const results = [];
   await page.waitForTimeout(1500);
   const b = await page.evaluate(() => document.querySelector('[data-meter-frame]')?.textContent);
   const pressed = await page.getAttribute('[data-motion]', 'aria-pressed');
-  const labelAfter = await page.textContent('[data-motion-text]');
+  // The printed word is a fixed noun now; the state lives in `aria-pressed`, in
+  // the hidden suffix that completes the accessible name, and in the mark.
+  const after = await page.evaluate(() => ({
+    state: document.querySelector('[data-motion-state]')?.textContent?.trim(),
+    name: (document.querySelector('[data-motion]')?.textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+    icon: [...document.querySelectorAll('[data-motion] svg')]
+      .filter((s) => s.getBoundingClientRect().width > 0)
+      .map((s) => s.dataset.icon),
+  }));
 
   results.push({
-    check: 'stop control halts the field',
+    check: 'stop control halts the field, and says so in its name and its mark',
     frameAfterStop: a,
     frameLater: b,
     ariaPressed: pressed,
-    labelAfter: labelAfter?.trim(),
-    pass: a === b && pressed === 'true',
+    ...after,
+    pass:
+      a === b &&
+      pressed === 'true' &&
+      after.icon[0] === 'material-symbols:play-arrow-sharp' &&
+      Boolean(after.state),
   });
   await ctx.close();
 }

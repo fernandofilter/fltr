@@ -1,13 +1,11 @@
 ---
 import '../styles/global.css';
-import type { Locale } from '../i18n/ui';
 
 interface Props {
-  locale: Locale;
   title: string;
   description: string;
 }
-const { locale, title, description } = Astro.props;
+const { title, description } = Astro.props;
 
 /**
  * The direction contract. It is emitted as the first child of <body> so it
@@ -19,10 +17,12 @@ const contract = `<!--
   precisely. Refuses the dark-mode developer portfolio and its minimal-white
   opposite.
 
-  OWN-WORLD: Pure #000 ground, #FFF signal; no grey token, no colour. One mono
-  face, Martian Mono, tabular, tracked uppercase labels. Material is a WebGL
-  point mesh; containers are bordered plates with barcode caps; active state
-  inverts. Tone comes from density, never opacity.
+  OWN-WORLD: Two values, ground and signal, and one inversion between them; no
+  grey token, no colour. Dark ground is the default and light mode is the same
+  world read the other way, never a second palette. One mono face, Martian Mono,
+  tabular, tracked uppercase labels. Material is a WebGL point mesh; containers
+  are bordered plates with barcode caps; active state inverts. Tone comes from
+  density, never opacity.
 
   STORY: A referral-warm business buyer arrives, finds a name and a working
   field, reads precision without being told, and takes one contact.
@@ -41,18 +41,49 @@ const contract = `<!--
 ---
 
 <!doctype html>
-<html lang={locale}>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
+    <!-- Declared ABOVE the boot script on purpose: parsing is sequential, so a
+         meta written after the script does not exist yet when it runs. -->
     <meta name="theme-color" content="#000000" />
+
+    {/*
+      The theme must be on <html> BEFORE the first paint, or a light-mode
+      visitor gets a black flash on every navigation. That rules out a bundled
+      module script — `is:inline` in <head> is the only thing that runs early
+      enough, and it is why this block is hand-written rather than imported.
+
+      There is deliberately no system branch. The owner asked for two states,
+      so anything not explicitly "light" is dark: an unset visitor gets the
+      default, and `prefers-color-scheme` is never consulted.
+    */}
+    <script is:inline>
+      (function () {
+        var choice = null;
+        try {
+          choice = localStorage.getItem('fltr-theme');
+        } catch (e) {
+          /* Private mode or blocked storage: the default is still correct. */
+        }
+        var theme = choice === 'light' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = theme;
+
+        // The boot screen is opt-IN, set here rather than in the markup, so
+        // that a visitor with JS off — who would have no way to dismiss it and
+        // no boot to wait for — simply never sees it. It is also why it is set
+        // before first paint: a cover that appears a frame late is a flash of
+        // the page it was meant to cover.
+        document.documentElement.dataset.booting = '';
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'light' ? '#ffffff' : '#000000');
+      })();
+    </script>
+
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="alternate" hreflang="pt" href="/" />
-    <link rel="alternate" hreflang="en" href="/en/" />
-    <link rel="alternate" hreflang="x-default" href="/" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />

@@ -12,12 +12,20 @@ import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:4321';
+
+// The boot screen covers the page until the field is up. Everything below acts
+// on the landing, so wait for the cover to be gone rather than racing it.
+const awaitBoot = (p) =>
+  p.waitForFunction(() => !document.documentElement.hasAttribute('data-booting'), {
+    timeout: 20000,
+  });
+
 const OUT = '.impeccable/review';
 
 const SHOTS = [
   { name: 'desktop', width: 1440, height: 900, path: '/' },
   { name: 'mobile', width: 390, height: 844, path: '/', isMobile: true },
-  { name: 'desktop-en', width: 1440, height: 900, path: '/en/' },
+  { name: 'desktop-light', width: 1440, height: 900, path: '/', theme: 'light' },
 ];
 
 mkdirSync(OUT, { recursive: true });
@@ -30,15 +38,26 @@ for (const shot of SHOTS) {
     deviceScaleFactor: 2,
     isMobile: Boolean(shot.isMobile),
     hasTouch: Boolean(shot.isMobile),
-    colorScheme: 'dark',
   });
   const page = await context.newPage();
+
+  // The page never consults `prefers-color-scheme` — there is no system option
+  // by decision — so a themed shot is set the same way a visitor sets it, by
+  // seeding the stored choice before the boot script reads it.
+  if (shot.theme) {
+    await page.addInitScript((t) => {
+      try {
+        localStorage.setItem('fltr-theme', t);
+      } catch (e) {}
+    }, shot.theme);
+  }
 
   const consoleErrors = [];
   page.on('console', (m) => m.type() === 'error' && consoleErrors.push(m.text()));
   page.on('pageerror', (e) => consoleErrors.push(String(e)));
 
   await page.goto(BASE + shot.path, { waitUntil: 'networkidle' });
+await awaitBoot(page);
 
   // The field boots on requestIdleCallback; wait for it to report real values
   // rather than guessing with a fixed sleep.

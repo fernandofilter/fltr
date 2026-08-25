@@ -5,10 +5,12 @@
  * vertices are displaced in the vertex shader. Two rules from the visual world
  * govern the implementation and are easy to break by accident:
  *
- *  1. NO GREY. Points are pure white or not drawn. Depth is carried by point
- *     SIZE, never by an opacity fade — an alpha ramp on white over black is a
- *     grey token wearing a different name. The only alpha in the fragment
- *     shader is a half-pixel edge feather, which is antialiasing, not tone.
+ *  1. NO GREY. Points are the signal value or not drawn. Depth is carried by
+ *     point SIZE, never by an opacity fade — an alpha ramp between the world's
+ *     two values is a grey token wearing a different name. The only alpha in
+ *     the fragment shader is a half-pixel edge feather: antialiasing, not tone.
+ *     Both values arrive from the theme, so light mode is the same rule read
+ *     the other way round, not a second material.
  *
  *  2. The readout is REAL. The values printed on the rails are sampled from
  *     this mesh on the frame they are shown. They are measurements of the thing
@@ -28,6 +30,7 @@ import {
   Points,
   Scene,
   ShaderMaterial,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 
@@ -40,8 +43,20 @@ export interface Readout {
 export interface FieldHandle {
   setRunning(running: boolean): void;
   isRunning(): boolean;
+  setTheme(theme: Theme): void;
+  /**
+   * Let the entrance play. While held, the mesh renders as the flat plane it
+   * starts from — which is what the boot screen is covering — so the one
+   * authored beat on this page is spent on a visitor who can see it rather
+   * than behind a curtain. A no-op once released, and under reduced motion,
+   * where there is no entrance to hold.
+   */
+  releaseEntrance(): void;
   destroy(): void;
 }
+
+/** Boot stages the field can vouch for. The boot screen prints these. */
+export type BootStage = 'renderer' | 'mesh' | 'frame';
 
 const VERT = /* glsl */ `
   uniform float uTime;
@@ -79,17 +94,31 @@ const VERT = /* glsl */ `
 `;
 
 const FRAG = /* glsl */ `
+  uniform vec3 uSignal;
+
   void main() {
     // Round point with a half-pixel feather. This is antialiasing, not tone:
-    // the interior is pure #ffffff at full alpha, and nothing anywhere in this
-    // shader scales that down. An alpha ramp on white over black IS grey, and
-    // this world has no grey — recession happens in gl_PointSize, upstream.
+    // the interior is the signal value at full alpha, and nothing anywhere in
+    // this shader scales that down. An alpha ramp between the two values IS
+    // grey, and this world has no grey — recession happens in gl_PointSize.
     vec2 c = gl_PointCoord - vec2(0.5);
     float a = 1.0 - smoothstep(0.42, 0.5, length(c));
     if (a <= 0.01) discard;
-    gl_FragColor = vec4(1.0, 1.0, 1.0, a);
+    gl_FragColor = vec4(uSignal, a);
   }
 `;
+
+/**
+ * The field's two values, matching the CSS tokens exactly. The canvas paints
+ * its own ground, so a stylesheet cannot reach it: the theme has to be handed
+ * across explicitly or the mesh stays black behind a white page.
+ */
+export type Theme = 'dark' | 'light';
+
+const PALETTE: Record<Theme, { ground: number; signal: [number, number, number] }> = {
+  dark: { ground: 0x000000, signal: [1, 1, 1] },
+  light: { ground: 0xffffff, signal: [0, 0, 0] },
+};
 
 /**
  * Grid density scales with viewport: narrow screens thin the mesh rather than
@@ -125,9 +154,14 @@ export async function initWaveField(
   canvas: HTMLCanvasElement,
   opts: {
     onReadout?: (r: Readout) => void;
+    onBoot?: (stage: BootStage, value: string) => void;
     startRunning: boolean;
+    holdEntrance?: boolean;
+    theme: Theme;
   }
 ): Promise<FieldHandle | null> {
+  const bootStart = performance.now();
+
   let renderer: WebGLRenderer;
   try {
     renderer = new WebGLRenderer({
@@ -140,8 +174,17 @@ export async function initWaveField(
     return null; // No WebGL. The caller ships the static fallback.
   }
 
+  // Which context was actually handed over, not which one was asked for.
+  opts.onBoot?.(
+    'renderer',
+    typeof WebGL2RenderingContext !== 'undefined' &&
+      renderer.getContext() instanceof WebGL2RenderingContext
+      ? 'WebGL2'
+      : 'WebGL'
+  );
+
   const scene = new Scene();
-  scene.background = new Color(0x000000);
+  scene.background = new Color(PALETTE[opts.theme].ground);
 
   const camera = new PerspectiveCamera(
     52,
@@ -173,12 +216,14 @@ export async function initWaveField(
   }
 
   const geometry = buildGrid(window.innerWidth);
+  opts.onBoot?.('mesh', nodes.toLocaleString('en-US'));
 
   const material = new ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uProgress: { value: 0 },
       uPointScale: { value: densityFor(window.innerWidth).scale },
+      uSignal: { value: new Vector3(...PALETTE[opts.theme].signal) },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -219,6 +264,9 @@ export async function initWaveField(
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   let running = opts.startRunning && !reduceMotion.matches;
+  // Nothing to hold under reduced motion: the entrance does not play there, the
+  // mesh is simply already resolved.
+  let held = Boolean(opts.holdEntrance) && !reduceMotion.matches;
   let raf = 0;
   let frame = 0;
   let clockStart = performance.now();
@@ -246,18 +294,28 @@ export async function initWaveField(
     material.uniforms.uTime.value = elapsed;
 
     // Entrance: exponential ease-out from a flat, already-visible plane.
-    if (entranceStart === 0) entranceStart = now;
-    const p = Math.min((now - entranceStart) / 1400, 1);
-    material.uniforms.uProgress.value = reduceMotion.matches ? 1 : 1 - Math.pow(1 - p, 4);
+    // While held it stays at the flat plane — the field is running, measurable
+    // and reporting; it just has not made its entrance yet.
+    let p = 0;
+    if (held) {
+      material.uniforms.uProgress.value = 0;
+    } else {
+      if (entranceStart === 0) entranceStart = now;
+      p = Math.min((now - entranceStart) / 1400, 1);
+      material.uniforms.uProgress.value = reduceMotion.matches ? 1 : 1 - Math.pow(1 - p, 4);
+    }
 
     renderer.render(scene, camera);
+    if (frame === 0) {
+      opts.onBoot?.('frame', `${Math.round(performance.now() - bootStart)} ms`);
+    }
     frame++;
 
     if (opts.onReadout && frame % 6 === 0) {
       opts.onReadout({ amplitude: readAmplitude(elapsed), nodes, frame });
     }
 
-    if (running || p < 1) raf = requestAnimationFrame(draw);
+    if (running || (!held && p < 1)) raf = requestAnimationFrame(draw);
     else raf = 0;
   }
 
@@ -277,6 +335,9 @@ export async function initWaveField(
     material.uniforms.uProgress.value = 1;
     material.uniforms.uTime.value = 0;
     renderer.render(scene, camera);
+    // draw() never runs on this path, so the frame stage reports from here or
+    // the boot screen would wait on a stage that is already done.
+    opts.onBoot?.('frame', `${Math.round(performance.now() - bootStart)} ms`);
     opts.onReadout?.({ amplitude: readAmplitude(0), nodes, frame: 0 });
   } else {
     kick();
@@ -306,6 +367,25 @@ export async function initWaveField(
       if (running) kick();
     },
     isRunning: () => running,
+
+    releaseEntrance() {
+      if (!held) return;
+      held = false;
+      // Stamped by draw() on its next frame, so the ease starts from the moment
+      // the curtain actually moves rather than from whenever the field booted.
+      entranceStart = 0;
+      kick();
+    },
+
+    setTheme(theme: Theme) {
+      const next = PALETTE[theme];
+      (scene.background as Color).setHex(next.ground);
+      (material.uniforms.uSignal.value as Vector3).set(...next.signal);
+      // Paint immediately. A held field — reduced motion, or the stop control
+      // pressed — has no frame coming, and would otherwise sit in the old
+      // theme until something unrelated woke the loop.
+      renderer.render(scene, camera);
+    },
     destroy() {
       if (raf) cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
