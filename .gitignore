@@ -1,0 +1,29 @@
+# Dependências / build
+node_modules/
+dist/
+.astro/
+build/
+coverage/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Claude Code — configuração local (não versionada)
+.claude/settings.local.json
+.claude/.credentials.json
+.scratch/
+
+# Impeccable — saídas de execução (regeneráveis, pesadas)
+# Versionados de propósito: .impeccable/config.json (config compartilhada do time)
+# e .impeccable/design.json (sidecar do DESIGN.md).
+.impeccable/config.local.json
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/critique/
+
+# SO / editor
+.DS_Store
+Thumbs.db
+*.log
