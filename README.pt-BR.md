@@ -8,32 +8,16 @@
 
 # fltr
 
+![Astro 7.2.6](https://img.shields.io/badge/astro-7.2.6-000?style=for-the-badge&labelColor=000&color=fff)
+![three.js r185](https://img.shields.io/badge/three.js-r185-000?style=for-the-badge&labelColor=000&color=fff)
+![TypeScript strict](https://img.shields.io/badge/typescript-strict-000?style=for-the-badge&labelColor=000&color=fff)
+![Sem framework de UI](https://img.shields.io/badge/framework%20de%20ui-nenhum-000?style=for-the-badge&labelColor=000&color=fff)
+
 Código-fonte da landing page da **fltr**, um serviço de desenvolvimento de software.
 
-```text
-ENVIADO ─────────────────────────────────────────────── gzip ──
-three.js + campo   █████████████████████████    126 KB   ilha adiada
-Martian Mono ×3    ██████░░░░░░░░░░░░░░░░░░░     31 KB   self-hosted
-HTML               ██░░░░░░░░░░░░░░░░░░░░░░░    8.4 KB
-CSS                █░░░░░░░░░░░░░░░░░░░░░░░░    3.2 KB   sem framework
-Scripts da página  █░░░░░░░░░░░░░░░░░░░░░░░░    3.5 KB   sem lib de UI
-Áudio              ░░░░░░░░░░░░░░░░░░░░░░░░░       0 B   sintetizado em runtime
-
-FONTE ──────────────────────────────────────────────── linhas ─
-.astro             █████████████████████████     1.590
-.mjs   verificação ████████████████░░░░░░░░░     1.023
-.ts    malha, som  ███████████████░░░░░░░░░░       925
-.css   um arquivo  █████░░░░░░░░░░░░░░░░░░░░       318
-
-VERIFICADO ──────────────────────────────── npm run verify ────
-boot 4  ·  features 10  ·  exits 3  ·  theme 4  ·  audio 5
-                                            26 checks, 0 fixtures
-```
-
-Esses números são medidos, não decorativos — é a mesma regra que a página segue:
-todo número que ela imprime é amostrado da malha no frame em que aparece. Ela
-também tem duas saídas obrigatórias, `prefers-reduced-motion` e sem-WebGL, ambas
-exercitadas acima.
+A página não carrega texto corrido, por decisão, então ela demonstra: uma malha
+de pontos WebGL de verdade, um loop lo-fi sintetizado em tempo de execução em vez
+de entregue como arquivo, e leituras amostradas da malha no frame em que aparecem.
 
 > Ainda não publicada — nenhum alvo de deploy escolhido, então não há URL no ar.
 
@@ -52,6 +36,10 @@ npm run preview
 ```bash
 npm run verify
 ```
+
+26 checks em cinco suítes: o handoff do boot, as features da página, as duas
+saídas obrigatórias (`prefers-reduced-motion` e sem-WebGL), o tema — lido dos
+pixels renderizados, não do DOM — e o áudio, medido por um analisador.
 
 ## Licença
 

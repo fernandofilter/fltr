@@ -8,32 +8,16 @@
 
 # fltr
 
+![Astro 7.2.6](https://img.shields.io/badge/astro-7.2.6-000?style=for-the-badge&labelColor=000&color=fff)
+![three.js r185](https://img.shields.io/badge/three.js-r185-000?style=for-the-badge&labelColor=000&color=fff)
+![TypeScript strict](https://img.shields.io/badge/typescript-strict-000?style=for-the-badge&labelColor=000&color=fff)
+![No dependencies at runtime](https://img.shields.io/badge/ui%20framework-none-000?style=for-the-badge&labelColor=000&color=fff)
+
 Source of the landing page for **fltr**, a software development service.
 
-```text
-SHIPPED ─────────────────────────────────────────────── gzip ──
-three.js + field   █████████████████████████    126 KB   deferred island
-Martian Mono ×3    ██████░░░░░░░░░░░░░░░░░░░     31 KB   self-hosted
-HTML               ██░░░░░░░░░░░░░░░░░░░░░░░    8.4 KB
-CSS                █░░░░░░░░░░░░░░░░░░░░░░░░    3.2 KB   no framework
-Page scripts       █░░░░░░░░░░░░░░░░░░░░░░░░    3.5 KB   no UI library
-Audio              ░░░░░░░░░░░░░░░░░░░░░░░░░       0 B   synthesised at runtime
-
-SOURCE ──────────────────────────────────────────────── lines ─
-.astro             █████████████████████████     1,590
-.mjs   verify      ████████████████░░░░░░░░░     1,023
-.ts    mesh, score ███████████████░░░░░░░░░░       925
-.css   one file    █████░░░░░░░░░░░░░░░░░░░░       318
-
-VERIFIED ────────────────────────────────── npm run verify ────
-boot 4  ·  features 10  ·  exits 3  ·  theme 4  ·  audio 5
-                                             26 checks, 0 fixtures
-```
-
-Those are measured, not decorative — which is the same rule the page itself
-runs on: every number it prints is sampled from the mesh on the frame it is
-shown. It also has two mandatory exits, `prefers-reduced-motion` and no-WebGL,
-both exercised above.
+The page carries no prose by decision, so it demonstrates instead: a real WebGL
+point mesh, a lo-fi loop synthesised at runtime rather than shipped as a file,
+and readouts sampled from the mesh on the frame they are shown.
 
 > Not published yet — no deploy target chosen, so there is no live URL.
 
@@ -52,6 +36,10 @@ npm run preview
 ```bash
 npm run verify
 ```
+
+26 checks across five suites: the boot handoff, the page's features, the two
+mandatory exits (`prefers-reduced-motion` and no-WebGL), the theme — read from
+rendered pixels, not the DOM — and the audio, measured through an analyser.
 
 ## License
 
